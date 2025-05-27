@@ -1,0 +1,23 @@
+# Flutter
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.dart_tool/
+.packages
+.pub-cache/
+.idea/
+android/.gradle/
+android/app/debug/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/.symlinks/
+macos/.symlinks/
+web/.dart_tool/
+.vscode/
+
+# Firebase
+*.firebaserc
+*.json
+
+# Others
+.DS_Store
