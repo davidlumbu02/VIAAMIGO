@@ -1,0 +1,2 @@
+C:/Users/DAVID/applismobile/VIAAMIGO-PROJECT/viaamigo/android/app/.cxx/Debug/6k1m2h6s/x86/CMakeFiles/edit_cache.dir
+C:/Users/DAVID/applismobile/VIAAMIGO-PROJECT/viaamigo/android/app/.cxx/Debug/6k1m2h6s/x86/CMakeFiles/rebuild_cache.dir

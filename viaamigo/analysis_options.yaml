@@ -1,0 +1,12 @@
+analyzer:
+  errors:
+    unnecessary_null_comparison: ignore
+    avoid_print: ignore
+
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Desactive le warning pour les noms snake_case (ex: event_type)
+    non_constant_identifier_names: false
+    # prefer_single_quotes: true  # Tu peux activer ceci si tu veux

@@ -1,0 +1,54 @@
+{
+  "project_info": {
+    "project_number": "800301662832",
+    "project_id": "viaamigo-9fea7",
+    "storage_bucket": "viaamigo-9fea7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800301662832:android:309970bbf1a1107d876ab5",
+        "android_client_info": {
+          "package_name": "com.example.viaamigo"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "800301662832-tpdnkdd82a804b7dv8193r2fk458256j.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.viaamigo",
+            "certificate_hash": "37a3bc96a202e1cd086a2b0be4c3157d385047c9"
+          }
+        },
+        {
+          "client_id": "800301662832-d9p53nnbpo0cvg34ehmpmsp9aqrp6g76.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnQ-wY0StBaJH22qksYzdiSUsl-5ISHYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "800301662832-d9p53nnbpo0cvg34ehmpmsp9aqrp6g76.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "800301662832-tep6g26em2dlahli3i55bmd1l2ced34r.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.viaamigo"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
