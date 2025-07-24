@@ -11,24 +11,42 @@ build/
 # ANDROID
 android/.gradle/
 android/app/debug/
+android/key.properties
+android/app/google-services.json   # ✅ CRITIQUE
 
 # IOS
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 ios/.symlinks/
+ios/Runner/GoogleService-Info.plist   # ✅ CRITIQUE
 
 # MACOS
 macos/.symlinks/
 
 # WEB
 web/.dart_tool/
+web/firebase-config.js   # ✅ Si tu utilises Firebase Web
 
 # 🧪 TEST & TEMP
 .DS_Store
 firebase-debug.log
 *.iml
+*.log
+*.tmp
 
-# 🔥 FIREBASE - n’ignore PAS tous les .json
-# 🔒 Ignore les secrets ou tokens si jamais tu en ajoutes un jour
-firebase-debug.log
+# 🔐 FICHIERS SENSIBLES / SECRETS
+.env
+.env.*
+lib/secrets.dart          # ✅ CRITIQUE pour les tokens
+lib/config.dart           # si tu y mets des clés
 .secret.*
+credentials.*
+firebase-service-account.json
+*.keystore
+*.p12
+*.pem
+
+# 🧪 MOCK / DEV
+mock_data/
+test_keys/
+test_firebase_config/
