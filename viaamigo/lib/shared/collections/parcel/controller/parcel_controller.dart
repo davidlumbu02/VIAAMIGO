@@ -179,7 +179,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   platformFee.value = currentParcel.value!.platform_fee ?? 0.0;
   
   // Calculer le prix final
-  finalPrice.value = currentParcel.value!.calculateTotalPrice();
+  //finalPrice.value = currentParcel.value!.calculateTotalPrice();
       
   // AMÉLIORATION: Mettre à jour la liste des erreurs de validation
   currentParcel.value!.validate();
@@ -262,26 +262,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
         currentParcel.value = currentParcel.value!.copyWith(deliveryDescription: value);
         break;
       case 'weight':
-        /*double weightValue = double.parse(value.toString());
-        currentParcel.value = currentParcel.value!.copyWith(weight: weightValue);
-        weightValid.value = weightValue > 0;
-        
-        // Recalculer le prix estimé
-        if (weightValid.value && currentParcel.value!.estimatedDistance != null) {
-          double estimatedPrice = PriceCalculator.calculateEstimatedPrice(
-            distanceKm: currentParcel.value!.estimatedDistance!,
-            weightKg: weightValue,
-            deliverySpeed: currentParcel.value!.delivery_speed,
-            declaredValue: currentParcel.value!.declared_value,
-            insuranceLevel: currentParcel.value!.insurance_level,
-          );
-          currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
-          
-          // Si premier calcul, initialiser le prix proposé aussi
-          if (currentParcel.value!.price == null) {
-            currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
-          }
-        }*/
+    
           double weightValue = double.parse(value.toString());
           currentParcel.value = currentParcel.value!.copyWith(weight: weightValue);
           weightValid.value = weightValue > 0;
@@ -291,16 +272,12 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
             double estimatedPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
             currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
             
-            if (currentParcel.value!.price == null) {
-              currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
+            if (currentParcel.value!.initialPrice == null) {
+              currentParcel.value = currentParcel.value!.copyWith(initialPrice: estimatedPrice);
             }
           }
         break;
       case 'size':
-        //currentParcel.value = currentParcel.value!.copyWith(size: value);
-        // ✅ NOUVEAU : Mapping automatique taille → dimensions
-       // Map<String, dynamic> autoDimensions = _getSizeDimensions(value);
-        
         currentParcel.value = currentParcel.value!.copyWith(
           size: value,
           //dimensions: autoDimensions  // ✅ Définit automatiquement les dimensions
@@ -318,25 +295,13 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
         validateRecipientFields();
         break;
       case 'delivery_speed':
-        /*currentParcel.value = currentParcel.value!.copyWith(delivery_speed: value);
-        
-        // Recalculer le prix si nécessaire
-        if (currentParcel.value!.estimatedDistance != null) {
-          double estimatedPrice = PriceCalculator.calculateEstimatedPrice(
-            distanceKm: currentParcel.value!.estimatedDistance!,
-            weightKg: currentParcel.value!.weight,
-            deliverySpeed: value,
-            declaredValue: currentParcel.value!.declared_value,
-            insuranceLevel: currentParcel.value!.insurance_level,
-          );
-          currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
-        }*/
          currentParcel.value = currentParcel.value!.copyWith(delivery_speed: value);
   
         // Recalculer le prix si nécessaire
         if (currentParcel.value!.estimatedDistance != null) {
           double estimatedPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
           currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
+          //currentParcel.value = currentParcel.value!.copyWith(initialPrice: estimatedPrice);
         }
         break;
       case 'insurance_level':
@@ -344,24 +309,24 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
           insurance_level: value,
           isInsured: value != 'none'
         );
-        if (currentParcel.value!.isInsured) {
+       /* if (currentParcel.value!.isInsured) {
         double insuranceFee = currentParcel.value!.calculateInsurancePremium();
         currentParcel.value = currentParcel.value!.copyWith(insurance_fee: insuranceFee);
       } else {
         currentParcel.value = currentParcel.value!.copyWith(insurance_fee: 0.0);
-      }
+      }*/
         break;
       case 'declared_value':
         currentParcel.value = currentParcel.value!.copyWith(declared_value: value);
         // ✅ NOUVEAU : Mise à jour automatique du niveau d'assurance
-      if (currentParcel.value!.isInsured) {
+      /*if (currentParcel.value!.isInsured) {
         currentParcel.value!.updateInsuranceLevel();
         // Forcer la mise à jour du modèle
         currentParcel.value = currentParcel.value!.copyWith(
           insurance_level: currentParcel.value!.insurance_level,
           insurance_fee: currentParcel.value!.insurance_fee
         );
-      }
+      }*/
         break;
           // ✅ NOUVEAUX CHAMPS D'ASSURANCE :
     case 'isInsured':
@@ -374,7 +339,11 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
           declared_value: null
         );
       }
-      break;  
+      break; 
+     case 'insurance_fee':
+      currentParcel.value = currentParcel.value!.copyWith(insurance_fee: value);
+
+      break;   
       case 'dimensions':
         currentParcel.value = currentParcel.value!.copyWith(dimensions: value);
         break;
@@ -388,10 +357,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
         // Recalculer les frais totaux
         computeTotalHandlingFee();
         break;
-      case 'insurance_fee':
-  currentParcel.value = currentParcel.value!.copyWith(insurance_fee: value);
-  break;
-case 'platform_fee':
+      case 'platform_fee':
   currentParcel.value = currentParcel.value!.copyWith(platform_fee: value);
   break;
 case 'price':
@@ -561,9 +527,9 @@ Future<void> updateDimension(String key, String value) async {
       currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
       
       // Si c'est la première fois, initialiser le prix proposé aussi
-      if (currentParcel.value!.price == null) {
-        currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
-      }
+      //if (currentParcel.value!.initialPrice = null) {
+        currentParcel.value = currentParcel.value!.copyWith(initialPrice: estimatedPrice);
+     // }
       
       if (autoSave.value) {
         await saveParcel();
@@ -589,23 +555,12 @@ Future<void> updateDimension(String key, String value) async {
       // Calculer le prix estimé avec le service dédié
       double estimatedPrice = PriceCalculator.calculateFromParcel(
         currentParcel.value!,
-     /* double estimatedPrice = PriceCalculator.calculateEstimatedPrice(
-        distanceKm: distance,
-        weightKg: currentParcel.value!.weight,
-        deliverySpeed: currentParcel.value!.delivery_speed,
-        declaredValue: currentParcel.value!.declared_value,
-        insuranceLevel: currentParcel.value!.insurance_level,
-        dimensions: currentParcel.value!.dimensions,
-        size: currentParcel.value!.size,
-        quantity: currentParcel.value!.quantity,*/
-
-
       );
       
       // Mettre à jour les prix
       currentParcel.value = currentParcel.value!.copyWith(
         estimatedPrice: estimatedPrice,
-        price: currentParcel.value!.price ?? estimatedPrice // Initialiser prix si null
+        initialPrice:  estimatedPrice // Initialiser prix si null
       );
       
       if (autoSave.value) {
@@ -868,7 +823,7 @@ void syncObservables() {
   declaredValue.value = currentParcel.value!.declared_value ?? 0.0;
   insuranceFee.value = currentParcel.value!.insurance_fee ?? 0.0;
   platformFee.value = currentParcel.value!.platform_fee ?? 0.0;
-  finalPrice.value = currentParcel.value!.calculateTotalPrice();
+  //finalPrice.value = currentParcel.value!.calculateTotalPrice();
   
   // Synchroniser les autres observables
   photosList.value = List<String>.from(currentParcel.value!.photos);
@@ -924,16 +879,18 @@ bool validateInsuranceInfo() {
   return currentParcel.value!.validateInsurance();
 }
 /// Calcule le prix total incluant tous les frais
+/*
 double calculateTotalWithInsurance() {
   if (currentParcel.value == null) return 0.0;
   
   return currentParcel.value!.calculateTotalPrice();
 }
-
+*/
 /// Obtient le détail des coûts avec assurance
+/*
 Map<String, double> getCostBreakdownWithInsurance() {
   if (currentParcel.value == null) return {};
   
   return currentParcel.value!.getCostBreakdown();
-}
+}*/
 }

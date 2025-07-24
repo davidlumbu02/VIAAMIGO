@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
 import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
+import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_text_field.dart';
 import 'package:viaamigo/shared/widgets/my_button.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
@@ -228,7 +229,6 @@ String _formatTime(TimeOfDay? time) {
                       onTap: () {
                         if (_validateAllFields()) {
                           _saveData();
-                         
                           controller.nextStep();
                         }
                       },
@@ -758,44 +758,20 @@ bool _validateAllFields() {
     if (startDateTime.isAfter(endDateTime)) {
       pickupTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Date error",
-        "Start date must be earlier than end date",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+  UIMessageExtensions.startDateMustBeEarlierThanEnd();
     } else if (startDateTime.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
       pickupTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Date error",
-        "Pick-up date must be in the future",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+  UIMessageExtensions.dateMustBeInFuture();
     } else if (endDateTime.difference(startDateTime).inMinutes < 30) {
       pickupTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Erreur de dates",
-        "La fenêtre de ramassage doit être d'au moins 30 minutes",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+  UIMessageExtensions.minimumWindowDuration(30);
     }
   }
 
   if (!isValid) {
-    Get.snackbar(
-      "Missing fields",
-      "Please fill in all required fields",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+UIMessageManager.validationError("Please fill in all required fields");
   }
 
   return isValid;
@@ -818,13 +794,7 @@ void _saveData() async {
         geo.longitude,
       );
     } else {
-      Get.snackbar(
-        "Adresse introuvable",
-        "Impossible de localiser cette adresse. Vérifiez votre saisie.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageManager.addressError();
       return; // Arrêter l'exécution si l'adresse est invalide
     }
     
@@ -845,13 +815,7 @@ if (_startDate != null && _startTime != null &&
   } catch (e) {
     // ✅ 6. GESTION D'ERREURS
     print("❌ Erreur lors de la sauvegarde : $e");
-    Get.snackbar(
-      "Erreur de sauvegarde",
-      "Une erreur s'est produite lors de la sauvegarde. Veuillez réessayer.",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+    UIMessageManager.error("An error occurred while saving. Please try again.");
   }
 }
 
@@ -1313,21 +1277,9 @@ Future<void> _showFloorSelectionModal(BuildContext context) async {
                     
                     Get.back();
                     
-                    Get.snackbar(
-                      "Update",
-                      "Successfully saved floor",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
+                    UIMessageExtensions.floorUpdated();
                   } catch (e) {
-                    Get.snackbar(
-                      "Erreur",
-                      "Impossible de sauvegarder l'étage",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.red,
-                      colorText: Colors.white,
-                    );
+                    UIMessageManager.error("Unable to save floor");
                   }
                 },
                 text: "Sauvegarder",
@@ -1436,26 +1388,11 @@ Future<void> _showElevatorSelectionModal(BuildContext context) async {
                     // Mettre à jour le handling avec la nouvelle valeur
                     final currentHandling = Map<String, dynamic>.from(parcel!.pickupHandling ?? {});
                     currentHandling['hasElevator'] = hasElevator.value;
-                    
                     await controller.updateField('pickupHandling', currentHandling);
-                    
                     Get.back();
-                    
-                    Get.snackbar(
-                      "update",
-                      "Successfully saved elevator preference",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
+                    UIMessageExtensions.elevatorUpdated();
                   } catch (e) {
-                    Get.snackbar(
-                      "Error",
-                      "Failed to save elevator preference",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.red,
-                      colorText: Colors.white,
-                    );
+                    UIMessageManager.error("Failed to save elevator preference");
                   }
                 },
                 text: "save",

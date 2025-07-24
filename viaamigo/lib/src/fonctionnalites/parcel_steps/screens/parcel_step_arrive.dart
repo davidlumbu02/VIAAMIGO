@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
 import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
+import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_text_field.dart';
 import 'package:viaamigo/shared/widgets/my_button.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
@@ -1035,39 +1036,21 @@ bool _validateAllFields() {
     if (startDateTime.isAfter(endDateTime)) {
       deliveryTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Date error",
-        "Start date must be earlier than end date",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageExtensions.startDateMustBeEarlierThanEnd();
     } else if (startDateTime.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
       deliveryTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Date error",
-        "Delivery date must be in the future",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageExtensions.dateMustBeInFuture();
     } else if (endDateTime.difference(startDateTime).inMinutes < 30) {
       deliveryTimeHasError.value = true;
       isValid = false;
-      Get.snackbar(
-        "Date error",
-        "The delivery window must be at least 30 minutes long",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageExtensions.minimumWindowDuration(30);
     }    
   }
 
   if (!isValid) {
     // ✅ NOUVEAU : Message d'erreur adapté selon le contexte
-    String errorMessage = "Please fill in all required fields";
+ /*   String errorMessage = "Please fill in all required fields";
     
     if (useReceiverInfo.value && (recipientNameHasError.value || recipientPhoneHasError.value)) {
       errorMessage = "Please complete the receiver information or disable the switch";
@@ -1075,15 +1058,17 @@ bool _validateAllFields() {
       errorMessage = "Please check the delivery time window";
     } else if (destinationHasError.value) {
       errorMessage = "Please specify a delivery address";
-    }
+    }*/
     
-    Get.snackbar(
-      "Missing fields",
-      errorMessage,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+if (useReceiverInfo.value && (recipientNameHasError.value || recipientPhoneHasError.value)) {
+  UIMessageExtensions.completeReceiverInfoOrDisableSwitch();
+} else if (deliveryTimeHasError.value) {
+  UIMessageExtensions.checkTimeWindow();
+} else if (destinationHasError.value) {
+  UIMessageExtensions.specifyAddress("delivery");
+} else {
+  UIMessageManager.validationError("Please fill in all required fields");
+}
   }
 
   return isValid;
@@ -1092,7 +1077,7 @@ bool _validateAllFields() {
 void _saveData() async {
   try {
     //save the Price(),
-    await controller.calculateEstimatePrice();
+   
     // ✅ 1. SAUVEGARDER LES INFORMATIONS DESTINATAIRE (seulement si switch activé)
     if (useReceiverInfo.value) {
       await controller.updateField('recipientName', recipientNameController.text.trim());
@@ -1102,7 +1087,8 @@ void _saveData() async {
       // ✅ S'assurer que les champs sont vides si le switch est désactivé
       await controller.updateField('recipientName', '');
       await controller.updateField('recipientPhone', '');
-      print("✅ Informations destinataire effacées (switch désactivé)");
+      print("✅ Informations destinataire effacées (switch désactivé)"); 
+      await controller.calculateEstimatePrice();
     }
     
     // ✅ 2. GÉOCODAGE ET SAUVEGARDE DE L'ADRESSE
@@ -1118,13 +1104,7 @@ void _saveData() async {
       );
       print("✅ Adresse de destination sauvegardée");
     } else {
-      Get.snackbar(
-        "Adresse introuvable",
-        "Impossible de localiser cette adresse. Vérifiez votre saisie.",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageManager.addressError();
       return; // Arrêter l'exécution si l'adresse est invalide
     }
     
@@ -1169,7 +1149,7 @@ void _saveData() async {
     print("❌ Erreur lors de la sauvegarde : $e");
     
     // ✅ Message d'erreur spécifique selon le type d'erreur
-    String errorTitle = "Erreur de sauvegarde";
+    /*String errorTitle = "Erreur de sauvegarde";
     String errorMessage = "Une erreur s'est produite lors de la sauvegarde. Veuillez réessayer.";
     
     if (e.toString().contains('network') || e.toString().contains('connection')) {
@@ -1181,16 +1161,17 @@ void _saveData() async {
     } else if (e.toString().contains('permission')) {
       errorTitle = "Permissions insuffisantes";
       errorMessage = "Permissions requises pour sauvegarder les données.";
-    }
+    }*/
     
-    Get.snackbar(
-      errorTitle,
-      errorMessage,
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-      duration: const Duration(seconds: 4),
-    );
+    if (e.toString().contains('network') || e.toString().contains('connection')) {
+  UIMessageManager.networkError();
+} else if (e.toString().contains('geocoding') || e.toString().contains('address')) {
+  UIMessageManager.addressError();
+} else if (e.toString().contains('permission')) {
+  UIMessageManager.permissionError("Required permissions to save data.");
+} else {
+  UIMessageManager.error("An error occurred while saving. Please try again.");
+}
   }
 }
 Widget _buildHandlingTile(BuildContext context) {
@@ -1649,21 +1630,9 @@ Future<void> _showFloorSelectionModal(BuildContext context) async {
                     
                     Get.back();
                     
-                    Get.snackbar(
-                      "Update",
-                      "Successfully saved floor",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
+                     UIMessageExtensions.elevatorUpdated();
                   } catch (e) {
-                    Get.snackbar(
-                      "Erreur",
-                      "Impossible de sauvegarder l'étage",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.red,
-                      colorText: Colors.white,
-                    );
+                    UIMessageManager.error("Failed to save elevator preference");
                   }
                 },
                 text: "Sauvegarder",
@@ -1777,21 +1746,9 @@ Future<void> _showElevatorSelectionModal(BuildContext context) async {
                     
                     Get.back();
                     
-                    Get.snackbar(
-                      "update",
-                      "Successfully saved elevator preference",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.green,
-                      colorText: Colors.white,
-                    );
+                     UIMessageExtensions.elevatorUpdated();
                   } catch (e) {
-                    Get.snackbar(
-                      "Error",
-                      "Failed to save elevator preference",
-                      snackPosition: SnackPosition.BOTTOM,
-                      backgroundColor: Colors.red,
-                      colorText: Colors.white,
-                    );
+                   UIMessageManager.error("Failed to save elevator preference");
                   }
                 },
                 text: "save",

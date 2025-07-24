@@ -5,6 +5,7 @@ import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
+import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_text_field.dart';
 import 'package:viaamigo/shared/widgets/my_button.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
@@ -55,7 +56,7 @@ class ParcelStepPrixState extends State<ParcelStepPrix> {
   void initState() {
     super.initState();
     _initializeForm();
-    _calculatePrices();
+    
      
   }
 
@@ -86,16 +87,23 @@ Timer? _debounceTimer;
 void _debouncedCalculation() {
   _debounceTimer?.cancel();
   _debounceTimer = Timer(const Duration(milliseconds: 500), () {
-    _calculatePrices();
+    _updateFinalPrice();
   });
 }
+void _updateFinalPrice() {
+  final price = double.tryParse(priceController.text) ?? 0.0;
+  //final discount = calculatedDiscount.value;
+  final insurance = insuranceFee.value;
+  finalPrice.value = price + insurance ;//- discount;
+}
+
 
   void _initializeForm() {
     final parcel = controller.currentParcel.value;
     
     if (parcel != null) {
       priceController = TextEditingController(
-        text: parcel.price?.toStringAsFixed(2) ?? parcel.estimatedPrice?.toStringAsFixed(2) ?? ''
+        text: parcel.initialPrice?.toStringAsFixed(2) ?? ''
       );
       declaredValueController = TextEditingController(
         text: parcel.declared_value?.toStringAsFixed(2) ?? ''
@@ -107,95 +115,30 @@ void _debouncedCalculation() {
       // Initialiser les options d'assurance
       selectedInsuranceLevel.value = parcel.insurance_level;
       isInsured.value = parcel.isInsured;
+      insuranceFee.value = parcel.insurance_fee ?? 0.0;
       
       // Initialiser les prix calculés
       estimatedPrice.value = parcel.estimatedPrice ?? 0.0;
-      finalPrice.value = parcel.price ?? parcel.estimatedPrice ?? 0.0;
+      finalPrice.value = parcel.initialPrice ?? parcel.estimatedPrice ?? 0.0;
+      
       
       // Si un code promo est déjà appliqué
       if (parcel.promo_code_applied != null && parcel.promo_code_applied!.isNotEmpty) {
         promoCodeApplied.value = true;
         calculatedDiscount.value = parcel.discount_amount ?? 0.0;
       }
+      _updateFinalPrice();
     } else {
       priceController = TextEditingController(text: '0.00');
       declaredValueController = TextEditingController();
       promoCodeController = TextEditingController();
+      _updateFinalPrice();
     }
     print("ParcelStepPrix initialized with parcel: ${parcel?.id ?? 'none'}");
     print("Initial price: ${priceController.text}");
     print("Initial declared value: ${declaredValueController.text}");
   }
-// ✅ CORRECTION : Ajouter try-catch dans _calculatePrices
-void _calculatePrices() {
-  try {
-    final parcel = controller.currentParcel.value;
-    if (parcel == null) return;
 
-    // Mise à jour du prix estimé
-    if (parcel.estimatedPrice != null && parcel.estimatedPrice! > 0) {
-      estimatedPrice.value = parcel.estimatedPrice!;
-    }
-
-    // Prix de base avec validation
-    double basePrice = 0.0;
-    final priceText = priceController.text.trim();
-    
-    if (priceText.isNotEmpty) {
-      basePrice = double.tryParse(priceText) ?? 0.0;
-    } else {
-      basePrice = estimatedPrice.value;
-    }
-
-    // Validation du prix de base
-    if (basePrice < 0) {
-      basePrice = 0.0;
-      priceHasError.value = true;
-      return;
-    } else {
-      priceHasError.value = false;
-    }
-
-    // ✅ Calculs avec validation d'assurance
-    double insurance = 0.0;
-    if (isInsured.value && declaredValueController.text.isNotEmpty) {
-      double declaredValue = double.tryParse(declaredValueController.text) ?? 0.0;
-      
-      if (declaredValue < 10.0) {
-        declaredValueHasError.value = true;
-        insurance = 0.0;
-      } else {
-        declaredValueHasError.value = false;
-        
-        if (selectedInsuranceLevel.value != 'none') {
-          insurance = ParcelModel.insuranceTranches[selectedInsuranceLevel.value]?['premium']?.toDouble() ?? 0.0;
-        }
-      }
-    }
-    insuranceFee.value = insurance;
-
-    // Frais de plateforme avec validation
-    platformFee.value = (basePrice * 0.20).clamp(2.0, double.infinity);
-
-    // Prix total avec validation
-    double totalBeforeDiscount = basePrice + insurance + platformFee.value;
-    double discount = calculatedDiscount.value;
-    discount = discount.clamp(0.0, totalBeforeDiscount * 0.8);
-    
-    finalPrice.value = (totalBeforeDiscount - discount).clamp(5.0, double.infinity);
-    
-  } catch (e) {
-    print("❌ Erreur dans _calculatePrices: $e");
-    // ✅ Valeurs par défaut en cas d'erreur
-    finalPrice.value = 5.0;
-    insuranceFee.value = 0.0;
-    platformFee.value = 2.0;
-  }
-}
-
-
-
-// ✅ NOUVEAU : Synchroniser le controller avec le prix calculé
 
 
  @override
@@ -251,9 +194,9 @@ void dispose() {
                         _buildInsuranceSection(),
                         const SizedBox(height: 24),
 
-                        sectionTitle(context, "Promotional code"),
-                        _buildPromoCodeSection(),
-                        const SizedBox(height: 24),
+                        //sectionTitle(context, "Promotional code"),
+                        //_buildPromoCodeSection(),
+                        //const SizedBox(height: 24),
 
                         sectionTitle(context, "Summary"),
                         _buildSummarySection(),
@@ -261,7 +204,7 @@ void dispose() {
                         const Spacer(), // ✅ NOUVEAU : Pousse le bouton vers le bas
                         
                         const SizedBox(height: 32),
-                        _buildPublishButton(),
+                        _buildNextButton(),
                         const SizedBox(height: 80),
                       ],
                     ),
@@ -275,13 +218,9 @@ void dispose() {
     ),
   );
   }
-
-  
-
   Widget _buildPriceSection() {
     final theme = Theme.of(context);
     final parcel = controller.currentParcel.value!;
-
     return Column(
       children: [
         // Prix estimé (lecture seule)
@@ -342,6 +281,11 @@ void dispose() {
           onChanged: (value) {
             priceHasError.value = false;
             _debouncedCalculation();
+                // ✅ NOUVEAU : Sauvegarder le prix immédiatement
+          final price = double.tryParse(value);
+          if (price != null && price > 0) {
+            controller.updateField('initialPrice', price);
+          }
           },
         )),
       ],
@@ -428,6 +372,7 @@ Future<void> _showInsuranceSelectionModal(BuildContext context) async {
   String tempSelectedLevel = selectedInsuranceLevel.value;
   double tempDeclaredValue = double.tryParse(declaredValueController.text) ?? 0.0;
   String tempDeclaredValueText = declaredValueController.text;
+  double tempInsuranceFee = insuranceFee.value;
 
   try {
     await navigationController.showAppBottomSheet<void>(
@@ -516,13 +461,12 @@ Future<void> _showInsuranceSelectionModal(BuildContext context) async {
                         setModalState(() {
                           tempDeclaredValueText = value;
                           tempDeclaredValue = double.tryParse(value) ?? 0.0;
+                          _updateFinalPrice();
                         });
                       },
                     ),
                   ),
-                  
                   const SizedBox(height: 20),
-                  
                   // ✅ CORRECTION PRINCIPALE : Liste scrollable avec Expanded
                   Expanded(
                     child: SingleChildScrollView(
@@ -544,12 +488,12 @@ Future<void> _showInsuranceSelectionModal(BuildContext context) async {
                             onTap: (key) {
                               setModalState(() {
                                 tempSelectedLevel = key;
+                                //tempDeclaredValueText = '';
+                                tempInsuranceFee = 0.0; // Aucune assurance, pas de frais
                               });
                             },
                           ),
-                          
                           const SizedBox(height: 12),
-                          
                           // Séparateur
                           Row(
                             children: [
@@ -587,6 +531,8 @@ Future<void> _showInsuranceSelectionModal(BuildContext context) async {
                                 onTap: (key) {
                                   setModalState(() {
                                     tempSelectedLevel = key;
+                                    // Calculer les frais d'assurance
+                                    tempInsuranceFee = entry.value['premium'].toDouble();
                                   });
                                 },
                               )),
@@ -615,24 +561,33 @@ Future<void> _showInsuranceSelectionModal(BuildContext context) async {
                                 isInsured.value = true;
                                 selectedInsuranceLevel.value = tempSelectedLevel;
                                 declaredValueController.text = tempDeclaredValueText;
+                                insuranceFee.value = tempInsuranceFee;
+                                      // ✅ NOUVEAU : Sauvegarder immédiatement
+                                controller.updateField('isInsured', true);
+                                controller.updateField('insurance_level', tempSelectedLevel);
+                                controller.updateField('declared_value', double.tryParse(tempDeclaredValueText) ?? 0.0);
+                                controller.updateField('insurance_fee', tempInsuranceFee);
                               } else {
                                 isInsured.value = false;
                                 selectedInsuranceLevel.value = 'none';
                                 declaredValueController.clear();
+                                insuranceFee.value = 0.0;
+                                      // ✅ NOUVEAU : Nettoyer les données sauvegardées
+                                controller.updateField('isInsured', false);
+                                controller.updateField('insurance_level', 'none');
+                                controller.updateField('declared_value', null);
+                                controller.updateField('insurance_fee', 0.0);
                               }
-                              
-                              _calculatePrices();
                               Get.back();
-                              
-                              Get.snackbar(
-                                "Insurance updated",
-                                tempSelectedLevel == 'none' 
-                                  ? "No insurance selected"
-                                  : "Insurance ${_getInsuranceLabel(tempSelectedLevel)} selected",
-                                snackPosition: SnackPosition.BOTTOM,
-                                backgroundColor: Colors.green,
-                                colorText: Colors.white,
+                              _updateFinalPrice();
+                              if (tempSelectedLevel == 'none') {
+                              UIMessageManager.info("No insurance selected", title: "Insurance updated");
+                            } else {
+                              UIMessageManager.success(
+                                "Insurance ${_getInsuranceLabel(tempSelectedLevel)} selected",
+                                title: "Insurance updated"
                               );
+                            }
                             },
                             text: "Apply",
                             height: 50,
@@ -762,7 +717,7 @@ Widget _buildInsuranceModalOptionFixed({
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
-                            "Couverture insuffisante pour la valeur déclarée (\$${declaredValue.toStringAsFixed(2)})",
+                            "Insufficient coverage for the declared value (\$${declaredValue.toStringAsFixed(2)})",
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: Colors.orange,
                               fontWeight: FontWeight.w500,
@@ -854,7 +809,7 @@ String _getInsuranceLabel(String key) {
   return 'Up to \$${data['maxValue']} CAD';
 }
 
-  Widget _buildPromoCodeSection() {
+ /* Widget _buildPromoCodeSection() {
     final theme = Theme.of(context);
 
     return Column(
@@ -933,7 +888,7 @@ String _getInsuranceLabel(String key) {
         }),
       ],
     );
-  }
+  }*/
 
 // ✅ Dans _buildSummarySection, ajouter des contraintes
 Widget _buildSummarySection() {
@@ -957,7 +912,7 @@ Widget _buildSummarySection() {
         _buildSummaryLine("Delivery price", "${double.tryParse(priceController.text)?.toStringAsFixed(2) ?? "0.00"} CAD"),
         if (insuranceFee.value > 0)
           _buildSummaryLine("Insurance", "${insuranceFee.value.toStringAsFixed(2)} CAD"),
-        _buildSummaryLine("Platform costs", "${platformFee.value.toStringAsFixed(2)} CAD"),
+        //_buildSummaryLine("Platform costs", "${platformFee.value.toStringAsFixed(2)} CAD"),
         if (calculatedDiscount.value > 0)
           _buildSummaryLine("Reduction", "-${calculatedDiscount.value.toStringAsFixed(2)} CAD", isDiscount: true),
         const Divider(thickness: 1),
@@ -1000,10 +955,14 @@ Widget _buildSummarySection() {
     );
   }
 
-  Widget _buildPublishButton() {
+  Widget _buildNextButton() {
     return Obx(() => MyButton(
-      onTap: isPublishing.value ? null : _publishParcel,
-      text: isPublishing.value ? "Publication in progress..." : "Next step",
+      onTap:() async {
+      if (!_validateAllFields()) return;
+      _saveData();
+      //Get.find<NavigationController>().navigateToNamed('parcel-step-next'); // ← à adapter selon ton routing
+    }, 
+      text: "Next step",
       height: 56,
       width: double.infinity,
       borderRadius: 30,
@@ -1021,7 +980,7 @@ Widget _buildSummarySection() {
     ));
   }
 
-  void _applyPromoCode() async {
+  /*void _applyPromoCode() async {
     final code = promoCodeController.text.trim();
     if (code.isEmpty) {
       promoCodeError.value = true;
@@ -1032,6 +991,7 @@ Widget _buildSummarySection() {
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
+      _updateFinalPrice();
       return;
     }
 
@@ -1047,9 +1007,7 @@ Widget _buildSummarySection() {
 
     if (mockPromoCodes.containsKey(code.toUpperCase())) {
       calculatedDiscount.value = mockPromoCodes[code.toUpperCase()]!;
-      promoCodeApplied.value = true;
-      _calculatePrices();
-      
+      promoCodeApplied.value = true;      
       Get.snackbar(
         "Applied code",
         "Reduction of ${calculatedDiscount.value.toStringAsFixed(2)} CAD applied",
@@ -1067,14 +1025,13 @@ Widget _buildSummarySection() {
         colorText: Colors.white,
       );
     }
-  }
+  }*/
 
-  void _removePromoCode() {
+ /* void _removePromoCode() {
     promoCodeController.clear();
     promoCodeApplied.value = false;
     calculatedDiscount.value = 0.0;
-    _calculatePrices();
-    
+    _updateFinalPrice();
     Get.snackbar(
       "Code removed",
       "The promotional code has been removed",
@@ -1082,7 +1039,7 @@ Widget _buildSummarySection() {
       backgroundColor: Colors.blue,
       colorText: Colors.white,
     );
-  }
+  }*/
 
 bool _validateAllFields() {
   bool isValid = true;
@@ -1125,125 +1082,28 @@ bool _validateAllFields() {
         // isValid = false;  // ❌ SUPPRIMÉ
         
         // ✅ NOUVEAU : Afficher un avertissement informatif
-        Get.snackbar(
-          "⚠️ Insufficient coverage",
-          "Your item is worth \$${declaredValue.toStringAsFixed(2)} CAD but the selected insurance only covers up to \$$maxCoverage CAD.\n\nIn case of loss, you will only be reimbursed up to \$$maxCoverage CAD.",
-          snackPosition: SnackPosition.BOTTOM,
-          backgroundColor: Colors.orange,
-          colorText: Colors.white,
-          duration: const Duration(seconds: 5),
-        );
+        UIMessageManager.warning(
+  "Your item is worth \$${declaredValue.toStringAsFixed(2)} CAD but the selected insurance only covers up to \$$maxCoverage CAD.\n\nIn case of loss, you will only be reimbursed up to \$$maxCoverage CAD.",
+  title: "Insufficient coverage",
+  duration: const Duration(seconds: 5),
+);
       }
     }
     
     // Vérifier que la valeur déclarée est cohérente avec le prix (inchangé)
     if (declaredValue != null && price != null && declaredValue < price) {
-      Get.snackbar(
-        "Attention",
-        "Declared value(\$${declaredValue.toStringAsFixed(2)} CAD) is lower than the delivery price (\$${price.toStringAsFixed(2)} CAD)",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+      UIMessageManager.warning(
+  "Declared value(\$${declaredValue.toStringAsFixed(2)} CAD) is lower than the delivery price (\$${price.toStringAsFixed(2)} CAD)",
+  title: "Attention",
+);
     }
   }
 
   if (!isValid) {
-    Get.snackbar(
-      "Invalid fields",
-      errors.join('\n'),
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-      duration: const Duration(seconds: 4),
-    );
+    UIMessageManager.validationError(errors.join('\n'));
   }
 
   return isValid;
-}
-
-
-void _publishParcel() async {
-  if (!_validateAllFields()) return;
-
-  // ✅ NOUVEAU : Confirmation avant publication
-  final confirmed = await _showPublishConfirmation();
-  if (!confirmed) return;
-
-  isPublishing.value = true;
-
-  try {
-    // Sauvegarder toutes les données finales
-    _saveData();
-
-    // Publier le colis
-    final success = await controller.publishParcel();
-
-    if (success) {
-      Get.snackbar(
-        "Success",
-        "Your ad has been successfully published!",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-        duration: const Duration(seconds: 3),
-      );
-
-      // Navigation vers la page de confirmation
-      Get.find<NavigationController>().navigateToNamed('home');
-    } else {
-      Get.snackbar(
-        "Error",
-        "An error occurred during publication",
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  } catch (e) {
-    Get.snackbar(
-      "Error",
-      "Error when saving: ${e.toString()}",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
-  } finally {
-    isPublishing.value = false;
-  }
-}
-// ✅ NOUVEAU : Modal de confirmation
-Future<bool> _showPublishConfirmation() async {
-  final result = await Get.dialog<bool>(
-    AlertDialog(
-      title: const Text("Confirm publication"),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text("You are about to publish your ad with :"),
-          const SizedBox(height: 12),
-          Text("•  Final price : ${finalPrice.value.toStringAsFixed(2)} CAD"),
-          if (isInsured.value)
-            Text("• Insurance : ${selectedInsuranceLevel.value}"),
-          if (promoCodeApplied.value)
-            Text("• Promo code : ${promoCodeController.text.trim()}"),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Get.back(result: false),
-          child: const Text("Cancel"),
-        ),
-        ElevatedButton(
-          onPressed: () => Get.back(result: true),
-          child: const Text("Publish"),
-        ),
-      ],
-    ),
-  );
-  
-  return result ?? false;
 }
 void _saveData() async {
   try {
@@ -1259,15 +1119,9 @@ void _saveData() async {
     }
 
     // Sauvegarder le prix final
-    await controller.updateField('price', finalPriceValue);
-    await controller.updateField('initialPrice', initialPriceValue);
+    await controller.updateField('initialPrice', finalPriceValue);
+    //await controller.updateField('initialPrice', initialPriceValue);
     
-    // ✅ NOUVEAU : Sauvegarder les frais de plateforme
-    await controller.updateField('platform_fee', platformFee.value);
-
-       // ✅ NOUVEAU : Sauvegarder les options d'assurance avec le nouveau système
-    await controller.updateField('isInsured', isInsured.value);
-    await controller.updateField('insurance_level', selectedInsuranceLevel.value);
     
     if (isInsured.value && declaredValueController.text.isNotEmpty) {
       final declaredValue = double.tryParse(declaredValueController.text) ?? 0.0;
@@ -1283,8 +1137,8 @@ void _saveData() async {
 
     // Sauvegarder le code promo si appliqué
     if (promoCodeApplied.value && promoCodeController.text.trim().isNotEmpty) {
-      await controller.updateField('promo_code_applied', promoCodeController.text.trim().toUpperCase());
-      await controller.updateField('discount_amount', calculatedDiscount.value);
+      await controller.updateField('promo_code_applied', null);
+      await controller.updateField('discount_amount', 0);
     } else {
       // ✅ Nettoyer les codes promo si non appliqués
       await controller.updateField('promo_code_applied', null);

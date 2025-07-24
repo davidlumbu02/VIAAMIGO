@@ -10,6 +10,7 @@ import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.
 //import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/controllers/navigationcontroller.dart';
+import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
 import 'package:viaamigo/shared/widgets/my_button.dart';
 import 'package:viaamigo/shared/widgets/theme_button.dart';
@@ -24,8 +25,6 @@ class ParcelStepColis extends StatefulWidget  {
    @override
   ParcelStepColisState createState() => ParcelStepColisState();
 }
-
-
   class ParcelStepColisState extends State<ParcelStepColis> {
   // ✅ Récupération du controller ParcelsController
   final controller = Get.find<ParcelsController>();
@@ -685,13 +684,7 @@ bool _validateAllFields() {
    // ✅ Weight validation avec weightHasError
   weightHasError.value = selectedWeight.value.isEmpty;
   if (selectedWeight.value.isEmpty) {
-    Get.snackbar(
-      "Missing weight",
-      "Please choose a weight",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.orange,
-      colorText: Colors.white,
-    );
+    UIMessageExtensions.chooseWeight();
     isValid = false;
   }
   
@@ -709,13 +702,7 @@ if (useExactDimensions.value) {
 }
   
   if (!isValid) {
-    Get.snackbar(
-      "Missing fields",
-      "Please fill in all required fields",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+  UIMessageManager.validationError("Please fill in all required fields");
   }
   
   return isValid;
@@ -735,13 +722,7 @@ bool _validateAndSaveDimensions() {
   heightHasError.value = height == null || height <= 0;
 
   if (lengthHasError.value || widthHasError.value || heightHasError.value) {
-    Get.snackbar(
-   "Invalid fields",
-  "Please enter valid dimensions (non-zero and numeric)",
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+    UIMessageExtensions.enterValidDimensions();
     return false;
   }
 
@@ -864,12 +845,7 @@ Future<void> _showImageSourceModal() async {
   // ✅ Vérifier la limite avant d'ouvrir le modal
   final currentPhotos = controller.currentParcel.value?.photos ?? [];
   if (currentPhotos.length >= MAX_PHOTOS) {
-    Get.snackbar(
-      "Limite atteinte", 
-      "Vous ne pouvez ajouter que ${controller.maxPhotos} photos maximum",
-      backgroundColor: Colors.orange,
-      colorText: Colors.white,
-    );
+  UIMessageExtensions.photoLimitReached(controller.maxPhotos);
     return;
   }
 
@@ -954,12 +930,7 @@ Future<void> _pickImage(ImageSource source) async {
     // ✅ Vérifier la limite avant de prendre la photo
     final currentPhotos = controller.currentParcel.value?.photos ?? [];
     if (currentPhotos.length >= MAX_PHOTOS) {
-      Get.snackbar(
-        "Limite atteinte", 
-        "Vous ne pouvez ajouter que ${controller.maxPhotos}  photos maximum",
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+      UIMessageExtensions.photoLimitReached(controller.maxPhotos);
       return;
     }
 
@@ -969,7 +940,7 @@ Future<void> _pickImage(ImageSource source) async {
     if (source == ImageSource.camera) {
       final cameraStatus = await Permission.camera.request();
       if (!cameraStatus.isGranted) {
-        Get.snackbar("Permission denied", "Camera access is required");
+        UIMessageExtensions.cameraPermissionRequired();
         return;
       }
     }
@@ -986,7 +957,7 @@ Future<void> _pickImage(ImageSource source) async {
       await controller.addPhoto(image.path);
     }
   } catch (e) {
-    Get.snackbar("Error", "Failed to pick image: $e");
+    UIMessageManager.error("Failed to pick image: $e");
   } finally {
     isUploadingPhoto.value = false;
   }
@@ -999,12 +970,7 @@ Future<void> _pickMultipleImages() async {
     final remainingSlots = MAX_PHOTOS - currentPhotos.length;
     
     if (remainingSlots <= 0) {
-      Get.snackbar(
-        "Limite atteinte", 
-        "Vous ne pouvez ajouter que $MAX_PHOTOS photos maximum",
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+    UIMessageExtensions.photoLimitReached(MAX_PHOTOS);
       return;
     }
 
@@ -1026,23 +992,13 @@ Future<void> _pickMultipleImages() async {
       
       // ✅ Message informatif adapté
       if (images.length > remainingSlots) {
-        Get.snackbar(
-          "Info", 
-          "Seules les $remainingSlots premières photos ont été ajoutées (limite: ${controller.maxPhotos})",
-          backgroundColor: Colors.blue,
-          colorText: Colors.white,
-        );
+      UIMessageManager.info("Only the first $remainingSlots photos were added (limit: ${controller.maxPhotos})");
       } else if (limitedImages.isNotEmpty) {
-        Get.snackbar(
-          "Succès", 
-          "${limitedImages.length} photo${limitedImages.length > 1 ? 's' : ''} ajoutée${limitedImages.length > 1 ? 's' : ''}",
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
+        UIMessageManager.photoUploadSuccess(limitedImages.length);
       }
     }
   } catch (e) {
-    Get.snackbar("Error", "Failed to pick images: $e");
+    UIMessageManager.error("Failed to pick images: $e");
   } finally {
     isUploadingPhoto.value = false;
   }
@@ -1055,12 +1011,7 @@ Future<void> _pickFilesImages() async {
     final remainingSlots = controller.getRemainingPhotoSlots();
     
     if (remainingSlots <= 0) {
-      Get.snackbar(
-        "Limite atteinte", 
-        "Vous ne pouvez ajouter que ${controller.maxPhotos} photos maximum",
-        backgroundColor: Colors.orange,
-        colorText: Colors.white,
-      );
+      UIMessageExtensions.photoLimitReached(controller.maxPhotos);
       return;
     }
 
@@ -1081,12 +1032,7 @@ Future<void> _pickFilesImages() async {
           .toList();
       
       if (validFiles.isEmpty) {
-        Get.snackbar(
-          "Erreur", 
-          "Aucun fichier valide sélectionné",
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
+        UIMessageManager.error("No valid file selected");
         return;
       }
       
@@ -1100,61 +1046,35 @@ Future<void> _pickFilesImages() async {
         try {
           // Vérifier la taille du fichier (ex: max 10MB)
           if (file.size > 10 * 1024 * 1024) {
-            Get.snackbar(
-              "Fichier trop volumineux", 
-              "${file.name} dépasse 10MB",
-              backgroundColor: Colors.orange,
-              colorText: Colors.white,
-            );
+            UIMessageExtensions.fileTooLarge(file.name, "10MB");
             continue;
           }
           
           // Vérifier l'extension
           if (!_isValidImageExtension(file.extension?.toLowerCase())) {
-            Get.snackbar(
-              "Format non supporté", 
-              "${file.name} n'est pas une image valide",
-              backgroundColor: Colors.orange,
-              colorText: Colors.white,
-            );
+            UIMessageExtensions.unsupportedFileFormat(file.name);
             continue;
           }
-          
           //await _uploadPhoto(file.path!);/
           await controller.addPhoto(file.path!);
           successfulUploads.add(file.name);
           
         } catch (e) {
-          Get.snackbar(
-            "Erreur upload", 
-            "Échec pour ${file.name}: $e",
-            backgroundColor: Colors.red,
-            colorText: Colors.white,
-          );
+          UIMessageExtensions.uploadFailed(file.name);
         }
       }
       
       // ✅ Messages informatifs
       if (successfulUploads.isNotEmpty) {
-        Get.snackbar(
-          "Succès", 
-          "${successfulUploads.length} fichier${successfulUploads.length > 1 ? 's' : ''} ajouté${successfulUploads.length > 1 ? 's' : ''}",
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
+      UIMessageManager.success("${successfulUploads.length} file${successfulUploads.length > 1 ? 's' : ''} added");
       }
       
       if (validFiles.length > remainingSlots) {
-        Get.snackbar(
-          "Info", 
-          "Seuls les $remainingSlots premiers fichiers ont été traités (limite: ${controller.maxPhotos})",
-          backgroundColor: Colors.blue,
-          colorText: Colors.white,
-        );
+    UIMessageManager.info("Only the first $remainingSlots files were processed (limit: ${controller.maxPhotos})");
       }
     }
   } catch (e) {
-    Get.snackbar("Erreur", "Échec de sélection des fichiers: $e");
+    UIMessageManager.error("File selection failed: $e");
   } finally {
     isUploadingPhoto.value = false;
   }

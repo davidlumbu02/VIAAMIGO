@@ -927,7 +927,7 @@ String getRecommendedInsuranceLevel(double declaredValue) {
   // If value exceeds 5000 CAD, select maximum tranche
   return 'tranche_5000';
 }
-
+/*
 /// Auto-update insurance level based on declared value
 void updateInsuranceLevel() {
   if (declared_value != null && declared_value! > 0) {
@@ -937,7 +937,7 @@ void updateInsuranceLevel() {
     insurance_level = 'none';
     insurance_fee = 0.0;
   }
-}
+}*/
 
 /// Validate insurance information
 bool validateInsurance() {
@@ -967,15 +967,15 @@ bool get isUnpaid => paymentStatus == 'unpaid';
 bool get isRefunded => paymentStatus == 'refunded';
 
 /// Calculate total price including insurance and platform fees
-double calculateTotalPrice() {
+/*double calculateTotalPrice() {
   final basePrice = price ?? estimatedPrice ?? 0.0;
   final insuranceCost = isInsured ? calculateInsurancePremium() : 0.0;
   final platformCost = platform_fee ?? (basePrice * 0.20).clamp(2.0, double.infinity);
   final discount = discount_amount ?? 0.0;
   
   return (basePrice + insuranceCost + platformCost - discount).clamp(5.0, double.infinity);
-}
-
+}*/
+/*
 /// Get cost breakdown for display
 Map<String, double> getCostBreakdown() {
   final basePrice = price ?? estimatedPrice ?? 0.0;
@@ -987,7 +987,7 @@ Map<String, double> getCostBreakdown() {
     'discount': discount_amount ?? 0.0,
     'totalPrice': calculateTotalPrice(),
   };
-}
+}*/
 
 /// Get all available insurance options for UI display
 static List<Map<String, dynamic>> getInsuranceOptions() {
