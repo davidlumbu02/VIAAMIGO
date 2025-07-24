@@ -19,6 +19,8 @@ ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 ios/.symlinks/
 ios/Runner/GoogleService-Info.plist   # ✅ CRITIQUE
+ios/Runner/GoogleService-Info.plist
+
 
 # MACOS
 macos/.symlinks/
@@ -50,3 +52,4 @@ firebase-service-account.json
 mock_data/
 test_keys/
 test_firebase_config/
+viaamigo/ios/Runner/GoogleService-Info.plist
