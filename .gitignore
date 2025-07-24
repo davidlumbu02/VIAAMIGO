@@ -1,23 +1,34 @@
-# Flutter
+# 📦 FLUTTER
 build/
-.flutter-plugins
-.flutter-plugins-dependencies
 .dart_tool/
 .packages
+.flutter-plugins
+.flutter-plugins-dependencies
 .pub-cache/
 .idea/
+.vscode/
+
+# ANDROID
 android/.gradle/
 android/app/debug/
+
+# IOS
 ios/Flutter/Flutter.framework
 ios/Flutter/Flutter.podspec
 ios/.symlinks/
+
+# MACOS
 macos/.symlinks/
+
+# WEB
 web/.dart_tool/
-.vscode/
 
-# Firebase
-*.firebaserc
-*.json
-
-# Others
+# 🧪 TEST & TEMP
 .DS_Store
+firebase-debug.log
+*.iml
+
+# 🔥 FIREBASE - n’ignore PAS tous les .json
+# 🔒 Ignore les secrets ou tokens si jamais tu en ajoutes un jour
+firebase-debug.log
+.secret.*

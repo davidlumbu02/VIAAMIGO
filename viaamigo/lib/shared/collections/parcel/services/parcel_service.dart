@@ -2,6 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
+import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
+import 'package:viaamigo/shared/collections/parcel/services/photo_upload_service.dart';
+//import 'package:viaamigo/shared/utilis/geo_utils.dart';
 
 
 class ParcelsService {
@@ -41,6 +44,29 @@ class ParcelsService {
       await _parcelsCollection.doc(parcel.id).update(parcel.toFirestore());
     } catch (e) {
       throw Exception('Erreur lors de la mise à jour du colis: $e');
+    }
+  }
+  // ✅ NOUVELLE MÉTHODE : Upload photos avec URLs réelles
+  Future<List<String>> uploadParcelPhotos(List<String> localPaths, String parcelId) async {
+    try {
+      return await PhotoUploadService.uploadMultipleParcelPhotos(
+        localPaths, 
+        parcelId,
+        onProgress: (current, total) {
+          print('Upload photo $current/$total');
+        },
+      );
+    } catch (e) {
+      throw Exception('Erreur upload photos: $e');
+    }
+  }
+  
+  // ✅ NOUVELLE MÉTHODE : Géocodage d'adresse
+  Future<GeocodingResult?> geocodeAddress(String address) async {
+    try {
+      return await GeocodingService.getCoordinatesFromAddress(address);
+    } catch (e) {
+      throw Exception('Erreur géocodage: $e');
     }
   }
   

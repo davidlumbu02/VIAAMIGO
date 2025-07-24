@@ -12,7 +12,25 @@ import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.
 /// des données du colis.
 class ParcelModel {
   // ----- PROPRIÉTÉS DE BASE -----
-  
+    /// Configuration des tranches d'assurance inspirée de Cocolis
+static const Map<String, Map<String, dynamic>> insuranceTranches = {
+    'none': {'maxValue': 0, 'premium': 0},
+    'tranche_150': {'maxValue': 150, 'premium': 2},
+    'tranche_250': {'maxValue': 250, 'premium': 4},
+    'tranche_500': {'maxValue': 500, 'premium': 5},
+    'tranche_1000': {'maxValue': 1000, 'premium': 9},
+    'tranche_1500': {'maxValue': 1500, 'premium': 15},
+    'tranche_2000': {'maxValue': 2000, 'premium': 24},
+    'tranche_2500': {'maxValue': 2500, 'premium': 35},
+    'tranche_3000': {'maxValue': 3000, 'premium': 45},
+    'tranche_3500': {'maxValue': 3500, 'premium': 55},
+    'tranche_4000': {'maxValue': 4000, 'premium': 65},
+    'tranche_4500': {'maxValue': 4500, 'premium': 75},
+    'tranche_5000': {'maxValue': 5000, 'premium': 85},
+  };
+double? insurance_fee;    // Frais d'assurance calculés
+double? platform_fee;     // Frais de plateforme
+
   /// Identifiant unique du colis (généré par Firestore)
   String? id;
   
@@ -24,23 +42,43 @@ class ParcelModel {
   
   /// Numéro de téléphone de l'expéditeur (optionnel)
   String? senderPhone;
-  
+  /// Référence vers le document de paiement dans la collection `payments`
+  String? paymentId;
+
+  /// Statut du paiement lié à ce colis
+  /// Valeurs possibles : 'unpaid', 'escrowed', 'paid', 'refunded'
+  String paymentStatus;
+
+  /// Date à laquelle le paiement a été effectué (si applicable)
+  DateTime? paidAt;
+
+
   /// Titre court décrivant le contenu du colis
   String title;
   
   /// Description détaillée du colis et de son contenu
-  String description;
+  String? description;
+
+  ///description pick up
+  String? pickupDescription;
+
+  ///description livraison
+  String? deliveryDescription;
   
   /// Poids du colis en kilogrammes
   double weight;
   
   /// Taille standard du colis (énumération sous forme de string)
-  /// Valeurs possibles: "small", "medium", "large", "custom"
+  /// Valeurs possibles: "S", "M", "L", "XL", "XXL", "custom"
   String size;
   
   /// Dimensions précises du colis en cm {length, width, height}
   /// Utilisé principalement quand size = "custom"
   Map<String, dynamic> dimensions;
+
+  Map<String, dynamic>? pickupHandling;
+  Map<String, dynamic>? deliveryHandling;
+  double? totalHandlingFee ;
   
   /// Catégorie du colis qui détermine les conditions de manipulation
   /// Valeurs possibles: "fragile", "normal", "perishable", "valuable"
@@ -95,6 +133,7 @@ class ParcelModel {
   
   /// Valeur déclarée du contenu (pour l'assurance)
   double? declared_value;
+
   
   /// Niveau d'assurance choisi
   /// Valeurs possibles: "none", "basic", "premium"
@@ -139,11 +178,7 @@ class ParcelModel {
   
   // ----- OPTIONS DE LIVRAISON -----
   
-  /// Indique si des jours alternatifs de livraison sont acceptables
-  bool flexible_days;
-  
-  /// Indique si le ramassage peut être effectué en avance
-  bool advanced_pickup_allowed;
+
   
   /// Vitesse de livraison souhaitée
   /// Valeurs possibles: "economy", "standard", "express"
@@ -180,6 +215,13 @@ class ParcelModel {
   
   /// Liste des erreurs de validation pour afficher à l'utilisateur
   List<String> validationErrors = [];
+
+  /// quantité de colis (utile pour les envois multiples)
+  int quantity;
+
+  
+  
+  
 
   // ----- GETTERS ET SETTERS POUR LES MODÈLES TYPÉS -----
   
@@ -237,14 +279,23 @@ class ParcelModel {
   /// La plupart des paramètres optionnels ont des valeurs par défaut sensées
   ParcelModel({
     this.id,
+    this.quantity = 1,
+    this.paymentId,
+    this.paymentStatus = 'unpaid',
+    this.paidAt,
     required this.senderId,
     required this.senderName,
     this.senderPhone,
     required this.title,
-    required this.description,
+    this.description,
+    this.pickupDescription = '',
+    this.deliveryDescription = '',
     required this.weight,
     required this.size,
     required this.dimensions,
+    this.pickupHandling,
+    this.deliveryHandling,
+    this.totalHandlingFee,
     required this.category,
     this.origin,
     required this.originAddress,
@@ -261,6 +312,8 @@ class ParcelModel {
     this.isInsured = false,
     this.declared_value,
     this.insurance_level = 'none',
+    this.insurance_fee,        // ✅ AJOUT
+    this.platform_fee,
     this.matchId,
     required this.createdAt,
     this.expiresAt,
@@ -272,8 +325,7 @@ class ParcelModel {
     this.completion_percentage = 0,
     this.navigation_step = 0,
     required this.last_edited,
-    this.flexible_days = false,
-    this.advanced_pickup_allowed = false,
+
     this.delivery_speed = 'standard',
     this.ai_recognition_results,
     this.pickup_point_id,
@@ -286,23 +338,53 @@ class ParcelModel {
     this.g,
     this.validationErrors = const [],
   });
+/*🔹 "assistanceLevel" (String)
+Niveau d'assistance souhaité pour l'enlèvement ou la livraison
 
+Valeur	Signification
+"door"	Dépôt ou ramassage au pied du véhicule ou devant la porte
+"light_assist"	Le chauffeur aide à porter brièvement jusqu’à l’entrée
+"room"	Le chauffeur entre dans le logement pour livrer ou récupérer (étage, pièce précise)
+"custom"	Option ouverte à discussion via le chat intégré */
   /// Crée un modèle de colis vide avec les valeurs minimales requises
   /// Utilisé pour initialiser un nouveau colis en mode brouillon
   factory ParcelModel.empty(String userId, String userName) {
     final now = DateTime.now();
     return ParcelModel(
       senderId: userId,
+      paymentId: '',
+      paymentStatus: 'unpaid',
+      paidAt: null,
       senderName: userName,
+      senderPhone: '',
       title: '',
       description: '',
+      pickupDescription: '',
+      deliveryDescription: '',
       weight: 0.0,
-      size: 'medium',
+      size: '',
       dimensions: {
         'length': 0,
         'width': 0,
         'height': 0,
       },
+      pickupHandling: {
+        "assistanceLevel": "",
+        "floor": 0,
+        "hasElevator": false,
+        //"snowOrObstacle": true,
+        "accessNotes": "",
+        "estimatedFee": 0.0
+      },
+      deliveryHandling: {
+        "assistanceLevel": "",
+        "floor": 0,
+        "hasElevator": false,
+        //"snowOrObstacle": true,
+        "accessNotes": "",
+        "estimatedFee": 0.0
+      },
+      totalHandlingFee: 0.0,
       category: 'normal',
       originAddress: '',
       destinationAddress: '',
@@ -311,8 +393,8 @@ class ParcelModel {
       createdAt: now,
       last_edited: now,
       pickup_window: {
-        'start_time': Timestamp.fromDate(now.add(Duration(days: 1))),
-        'end_time': Timestamp.fromDate(now.add(Duration(days: 1, hours: 2))),
+        'start_time': Timestamp.fromDate(now.add(Duration(days: 0, hours: 1))),
+        'end_time': Timestamp.fromDate(now.add(Duration(days: 7, hours: 3))),
       },
       delivery_window: {
         'start_time': Timestamp.fromDate(now.add(Duration(days: 2))),
@@ -342,14 +424,37 @@ if (data['destination'] != null) {
 
     return ParcelModel(
       id: doc.id,
+      quantity: data['quantity'] ?? 1,
+      paymentId: data['paymentId'] ?? '',
+      paymentStatus: data['paymentStatus'] ?? 'unpaid',
+      paidAt: data['paidAt']?.toDate(),
       senderId: data['senderId'] ?? '',
       senderName: data['senderName'] ?? '',
       senderPhone: data['senderPhone'],
       title: data['title'] ?? '',
       description: data['description'] ?? '',
+      pickupDescription: data['pickupDescription'] ?? '',
+      deliveryDescription: data['deliveryDescription'] ?? '',
       weight: data['weight']?.toDouble() ?? 0.0,
-      size: data['size'] ?? 'medium',
+      size: data['size'] ?? 'SIZE M',
       dimensions: data['dimensions'] ?? {'length': 0, 'width': 0, 'height': 0},
+      pickupHandling: data['pickupHandling'] ?? {
+        "assistanceLevel": "door",
+        "floor": 0,
+        "hasElevator": false,
+        //"snowOrObstacle": true,
+        "accessNotes": "",
+        "estimatedFee": 35.0
+      },
+      deliveryHandling: data['deliveryHandling'] ?? {
+        "assistanceLevel": "door",
+        "floor": 0,
+        "hasElevator": false,
+        //"snowOrObstacle": true,
+        "accessNotes": "",
+        "estimatedFee": 0.0
+      },
+      totalHandlingFee: data['totalHandlingFee']?.toDouble() ?? 0.0,
       category: data['category'] ?? 'normal',
       origin: origin,
       originAddress: data['originAddress'] ?? '',
@@ -366,6 +471,8 @@ if (data['destination'] != null) {
       isInsured: data['isInsured'] ?? false,
       declared_value: data['declared_value']?.toDouble(),
       insurance_level: data['insurance_level'] ?? 'none',
+      insurance_fee: data['insurance_fee']?.toDouble(),      // ✅ AJOUT
+    platform_fee: data['platform_fee']?.toDouble(), 
       matchId: data['matchId'],
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       expiresAt: (data['expiresAt'] as Timestamp?)?.toDate(),
@@ -377,8 +484,7 @@ if (data['destination'] != null) {
       completion_percentage: data['completion_percentage'] ?? 0,
       navigation_step: data['navigation_step'] ?? 0,
       last_edited: (data['last_edited'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      flexible_days: data['flexible_days'] ?? false,
-      advanced_pickup_allowed: data['advanced_pickup_allowed'] ?? false,
+
       delivery_speed: data['delivery_speed'] ?? 'standard',
       ai_recognition_results: data['ai_recognition_results'],
       pickup_point_id: data['pickup_point_id'],
@@ -396,14 +502,24 @@ if (data['destination'] != null) {
   /// Gère la conversion des types spécifiques (DateTime en Timestamp, etc.)
   Map<String, dynamic> toFirestore() {
     return {
+      'quantity': quantity,
+      'id': id,
+      'paymentId': paymentId,
+      'paymentStatus': paymentStatus,
+      'paidAt': paidAt != null ? Timestamp.fromDate(paidAt!) : null,
       'senderId': senderId,
       'senderName': senderName,
       'senderPhone': senderPhone,
       'title': title,
       'description': description,
+      'pickupDescription': pickupDescription,
+      'deliveryDescription': deliveryDescription,
       'weight': weight,
       'size': size,
       'dimensions': dimensions,
+      'totalHandlingFee': totalHandlingFee,
+      'pickupHandling': pickupHandling,
+      'deliveryHandling': deliveryHandling,
       'category': category,
       'origin': origin != null ? GeoPoint(origin!.latitude, origin!.longitude) : null,
       'originAddress': originAddress,
@@ -418,6 +534,8 @@ if (data['destination'] != null) {
       'initialPrice': initialPrice,
       'insuranceId': insuranceId,
       'isInsured': isInsured,
+      'insurance_fee': insurance_fee,        // ✅ AJOUT
+    'platform_fee': platform_fee,         // ✅ AJOUT
       'declared_value': declared_value,
       'insurance_level': insurance_level,
       'matchId': matchId,
@@ -431,8 +549,7 @@ if (data['destination'] != null) {
       'completion_percentage': completion_percentage,
       'navigation_step': navigation_step,
       'last_edited': Timestamp.fromDate(last_edited),
-      'flexible_days': flexible_days,
-      'advanced_pickup_allowed': advanced_pickup_allowed,
+ 
       'delivery_speed': delivery_speed,
       'ai_recognition_results': ai_recognition_results,
       'pickup_point_id': pickup_point_id,
@@ -451,14 +568,23 @@ if (data['destination'] != null) {
   /// manipulations de données sans effets secondaires
   ParcelModel copyWith({
     String? id,
+    String? paymentId,
+    String? paymentStatus,
+    DateTime? paidAt,
+    int? quantity,
     String? senderId,
     String? senderName,
     String? senderPhone,
     String? title,
     String? description,
+    String? pickupDescription,
+    String? deliveryDescription,
     double? weight,
     String? size,
     Map<String, dynamic>? dimensions,
+    Map<String, dynamic>? pickupHandling,
+    Map<String, dynamic>? deliveryHandling,
+    double? totalHandlingFee,
     String? category,
     GeoFirePoint? origin,
     String? originAddress,
@@ -475,6 +601,8 @@ if (data['destination'] != null) {
     bool? isInsured,
     double? declared_value,
     String? insurance_level,
+    double? insurance_fee,
+    double? platform_fee,
     String? matchId,
     DateTime? createdAt,
     DateTime? expiresAt,
@@ -486,8 +614,7 @@ if (data['destination'] != null) {
     int? completion_percentage,
     int? navigation_step,
     DateTime? last_edited,
-    bool? flexible_days,
-    bool? advanced_pickup_allowed,
+
     String? delivery_speed,
     Map<String, dynamic>? ai_recognition_results,
     String? pickup_point_id,
@@ -502,14 +629,23 @@ if (data['destination'] != null) {
   }) {
     return ParcelModel(
       id: id ?? this.id,
+      paymentId: paymentId ?? this.paymentId,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      paidAt: paidAt ?? this.paidAt,
+      quantity: quantity ?? this.quantity,
       senderId: senderId ?? this.senderId,
       senderName: senderName ?? this.senderName,
       senderPhone: senderPhone ?? this.senderPhone,
       title: title ?? this.title,
       description: description ?? this.description,
+      pickupDescription: pickupDescription ?? this.pickupDescription,
+      deliveryDescription: deliveryDescription ?? this.deliveryDescription,
       weight: weight ?? this.weight,
       size: size ?? this.size,
       dimensions: dimensions ?? this.dimensions,
+      totalHandlingFee: totalHandlingFee ?? this.totalHandlingFee,
+      pickupHandling: pickupHandling ?? this.pickupHandling,
+      deliveryHandling: deliveryHandling ?? this.deliveryHandling,
       category: category ?? this.category,
       origin: origin ?? this.origin,
       originAddress: originAddress ?? this.originAddress,
@@ -526,6 +662,8 @@ if (data['destination'] != null) {
       isInsured: isInsured ?? this.isInsured,
       declared_value: declared_value ?? this.declared_value,
       insurance_level: insurance_level ?? this.insurance_level,
+      insurance_fee: insurance_fee ?? this.insurance_fee,
+      platform_fee: platform_fee ?? this.platform_fee,
       matchId: matchId ?? this.matchId,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
@@ -537,8 +675,7 @@ if (data['destination'] != null) {
       completion_percentage: completion_percentage ?? this.completion_percentage,
       navigation_step: navigation_step ?? this.navigation_step,
       last_edited: last_edited ?? this.last_edited,
-      flexible_days: flexible_days ?? this.flexible_days,
-      advanced_pickup_allowed: advanced_pickup_allowed ?? this.advanced_pickup_allowed,
+
       delivery_speed: delivery_speed ?? this.delivery_speed,
       ai_recognition_results: ai_recognition_results ?? this.ai_recognition_results,
       pickup_point_id: pickup_point_id ?? this.pickup_point_id,
@@ -561,7 +698,10 @@ if (data['destination'] != null) {
     
     // Vérification de chaque champ obligatoire
     if (title.isNotEmpty) completedFields++;
-    if (description.isNotEmpty) completedFields++;
+    
+    //if (pickupDescription.isNotEmpty) completedFields++;
+    //if (deliveryDescription.isNotEmpty) completedFields++;
+    if (size.isNotEmpty) completedFields++;
     if (weight > 0) completedFields++;
     if (originAddress.isNotEmpty) completedFields++;
     if (destinationAddress.isNotEmpty) completedFields++;
@@ -583,7 +723,11 @@ if (data['destination'] != null) {
     
     // Vérification des champs textuels obligatoires
     if (title.isEmpty) validationErrors.add('Titre manquant');
-    if (description.isEmpty) validationErrors.add('Description manquante');
+    //if (description.isEmpty) validationErrors.add('Description manquante');
+   // if (pickupDescription.isEmpty) validationErrors.add('Description de ramassage manquante');
+    //if (deliveryDescription.isEmpty) validationErrors.add('Description de livraison manquante');
+    if (category.isEmpty) validationErrors.add('Catégorie manquante');
+    if (size.isEmpty) validationErrors.add('Taille manquante');
     if (weight <= 0) validationErrors.add('Poids invalide');
     if (originAddress.isEmpty) validationErrors.add('Adresse de départ manquante');
     if (destinationAddress.isEmpty) validationErrors.add('Adresse de destination manquante');
@@ -609,9 +753,9 @@ if (data['destination'] != null) {
     }
     
     // Vérification des informations d'assurance si nécessaire
-    if (isInsured && (declared_value == null || declared_value! <= 0)) {
-      validationErrors.add('Valeur déclarée requise pour l\'assurance');
-    }
+  if (!validateInsurance()) {
+    // Les erreurs sont déjà ajoutées dans validateInsurance()
+  }
     
     return validationErrors.isEmpty;
   }
@@ -627,6 +771,7 @@ if (data['destination'] != null) {
   Map<String, dynamic> toDisplayCard() {
     return {
       'id': id,
+      'quantity': quantity,
       'title': title,
       'thumbnail': mainPhotoUrl,
       'fromTo': '$originAddress → $destinationAddress',
@@ -636,7 +781,7 @@ if (data['destination'] != null) {
       'weight': '${weight.toStringAsFixed(1)} kg',
       'size': _getDisplaySize(),
       'pickupDate': _formatDisplayDate(getPickupStartTime()),
-      'isUrgent': delivery_speed == 'express',
+      'isUrgent': delivery_speed == 'urgent',
       'completionPercent': completion_percentage,
       'isDraft': draft,
     };
@@ -657,16 +802,24 @@ if (data['destination'] != null) {
   }
   
   /// Convertit le code de taille en texte lisible pour l'affichage
-  String _getDisplaySize() {
-    switch (size) {
-      case 'small': return 'Petit';
-      case 'medium': return 'Moyen';
-      case 'large': return 'Grand';
-      case 'custom': return 'Sur mesure';
-      default: return 'Inconnu';
-    }
+String _getDisplaySize() {
+  switch (size) {
+    case 'SIZE S': 
+      return 'Petit';
+    case 'SIZE M': 
+      return 'Moyen';
+    case 'SIZE L': 
+      return 'Grand';
+    case 'SIZE XL': 
+      return 'Très Grand';
+    case 'SIZE XXL': 
+      return 'Extra Grand';
+    case 'custom': 
+      return 'Sur mesure';
+    default: 
+      return size; // Affiche la valeur brute pour les formats inconnus
   }
-  
+}
   /// Formate une date pour l'affichage UI
   String _formatDisplayDate(DateTime? date) {
     if (date == null) return 'Non définie';
@@ -684,6 +837,7 @@ if (data['destination'] != null) {
       'height': height,
     };
   }
+
 
   /// Met à jour la fenêtre de ramassage avec des valeurs DateTime
   /// Convertit les DateTime en Timestamp pour le stockage
@@ -737,7 +891,133 @@ if (data['destination'] != null) {
       primaryPhotoUrl = photos.first;
     }
   }
+  // ----- MÉTHODES D'ASSURANCE -----
+
+/// Calculate insurance premium based on selected tranche
+double calculateInsurancePremium() {
+  return insuranceTranches[insurance_level]?['premium']?.toDouble() ?? 0.0;
+}
+
+/// Get maximum coverage for selected tranche
+int getMaxInsuranceCoverage() {
+  return insuranceTranches[insurance_level]?['maxValue'] ?? 0;
+}
+
+/// Generate display label for insurance tranche
+String getInsuranceLabel() {
+  if (insurance_level == 'none') return 'No insurance';
   
+  final maxValue = getMaxInsuranceCoverage();
+  return 'Up to \$$maxValue CAD';
+}
+
+/// Get recommended insurance level based on declared value
+String getRecommendedInsuranceLevel(double declaredValue) {
+  if (declaredValue <= 0) return 'none';
+  
+  for (final entry in insuranceTranches.entries) {
+    if (entry.key == 'none') continue;
+    
+    final maxValue = entry.value['maxValue'];
+    if (declaredValue <= maxValue) {
+      return entry.key;
+    }
+  }
+  
+  // If value exceeds 5000 CAD, select maximum tranche
+  return 'tranche_5000';
+}
+
+/// Auto-update insurance level based on declared value
+void updateInsuranceLevel() {
+  if (declared_value != null && declared_value! > 0) {
+    insurance_level = getRecommendedInsuranceLevel(declared_value!);
+    insurance_fee = calculateInsurancePremium();
+  } else {
+    insurance_level = 'none';
+    insurance_fee = 0.0;
+  }
+}
+
+/// Validate insurance information
+bool validateInsurance() {
+  if (!isInsured) return true;
+  
+  if (declared_value == null || declared_value! <= 0) {
+    validationErrors.add('Declared value required for insurance');
+    return false;
+  }
+  
+  if (declared_value! < 10.0) {
+    validationErrors.add('Minimum declared value is \$10.00 CAD');
+    return false;
+  }
+  
+  final maxCoverage = getMaxInsuranceCoverage();
+  if (declared_value! > maxCoverage && maxCoverage > 0) {
+    validationErrors.add('Declared value (\$${declared_value!.toStringAsFixed(2)} CAD) exceeds maximum coverage (\$$maxCoverage CAD)');
+    return false;
+  }
+  
+  return true;
+}
+bool get isPaid => paymentStatus == 'paid';
+bool get isEscrowed => paymentStatus == 'escrowed';
+bool get isUnpaid => paymentStatus == 'unpaid';
+bool get isRefunded => paymentStatus == 'refunded';
+
+/// Calculate total price including insurance and platform fees
+double calculateTotalPrice() {
+  final basePrice = price ?? estimatedPrice ?? 0.0;
+  final insuranceCost = isInsured ? calculateInsurancePremium() : 0.0;
+  final platformCost = platform_fee ?? (basePrice * 0.20).clamp(2.0, double.infinity);
+  final discount = discount_amount ?? 0.0;
+  
+  return (basePrice + insuranceCost + platformCost - discount).clamp(5.0, double.infinity);
+}
+
+/// Get cost breakdown for display
+Map<String, double> getCostBreakdown() {
+  final basePrice = price ?? estimatedPrice ?? 0.0;
+  
+  return {
+    'basePrice': basePrice,
+    'insuranceFee': isInsured ? calculateInsurancePremium() : 0.0,
+    'platformFee': platform_fee ?? (basePrice * 0.20).clamp(2.0, double.infinity),
+    'discount': discount_amount ?? 0.0,
+    'totalPrice': calculateTotalPrice(),
+  };
+}
+
+/// Get all available insurance options for UI display
+static List<Map<String, dynamic>> getInsuranceOptions() {
+  return insuranceTranches.entries.map((entry) {
+    final key = entry.key;
+    final data = entry.value;
+    
+    return {
+      'key': key,
+      'maxValue': data['maxValue'],
+      'premium': data['premium'],
+      'label': key == 'none' ? 'No insurance' : 'Up to \$${data['maxValue']} CAD',
+      'priceLabel': key == 'none' ? '' : '+\$${data['premium']} CAD',
+    };
+  }).toList();
+}
+
+/// Get insurance option by key
+static Map<String, dynamic>? getInsuranceOption(String key) {
+  if (!insuranceTranches.containsKey(key)) return null;
+  
+  final data = insuranceTranches[key]!;
+  return {
+    'key': key,
+    'maxValue': data['maxValue'],
+    'premium': data['premium'],
+    'label': key == 'none' ? 'No insurance' : 'Up to \$${data['maxValue']} CAD',
+    'priceLabel': key == 'none' ? '' : '+\$${data['premium']} CAD',
+  };
+}
   /// Traite les résultats d'une analyse d'image par IA pour extraire
   /// des informations utiles pour le colis (dimensions, catégorie, poids)
     /// Traite les résultats d'une analyse d'image par IA pour extraire

@@ -23,7 +23,7 @@ class MyButton extends StatelessWidget {
     this.height,
     this.margin,
     this.borderRadius = 10,
-    this.isDisabled = false, // ✅ valeur par défaut
+    this.isDisabled = false, MaterialColor? backgroundColor, SizedBox? child, // ✅ valeur par défaut
   });
 
   @override

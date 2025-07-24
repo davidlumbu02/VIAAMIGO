@@ -121,11 +121,11 @@ class SettingsApp extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 30),
-                    sectionTitle('Payment & verification'),
+                    sectionTitle(context,'Payment & verification'),
                     tile(theme, LucideIcons.creditCard, 'Payement modes'),
                     tile(theme, LucideIcons.badgeCheck, 'Verifications (ID, Licence...)'),
                     const SizedBox(height: 30),
-                    sectionTitle('Settings'),
+                    sectionTitle(context,'Settings'),
                     tile(theme, LucideIcons.bell, 'Notifications'),
                     tile(theme, LucideIcons.moonStar, 'Theme', onTap: () {
                       CustomModalController.showBottomSheet(

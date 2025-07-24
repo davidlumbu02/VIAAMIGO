@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-/// Widget réutilisable pour les boutons sociaux ou classiques avec icône/logo.
-/// Style inspiré de ChatGPT, Gemini, Grok.
+/// Widget réutilisable pour les boutons avec icône/logo facultatif.
+/// Supporte aussi une icône à gauche (icon) et à droite (endIcon).
 Widget buildButtonTextLogo(
   BuildContext context, {
   required String label,
@@ -16,7 +16,9 @@ Widget buildButtonTextLogo(
   /// 🎯 NOUVEAUX PARAMÈTRES
   double? width,
   double? height,
-  bool useAltBorder = false, // ← nouveau bool pour choisir border2
+  bool useAltBorder = false,
+  IconData? endIcon, // ✅ Nouveau paramètre
+  Color? bordercolerput,
 }) {
   final theme = Theme.of(context);
   final textColor = isFilled
@@ -32,7 +34,7 @@ Widget buildButtonTextLogo(
   final borderColor = outlined
       ? (useAltBorder
           ? theme.colorScheme.outline
-          : theme.colorScheme.primary)
+          : bordercolerput ?? theme.colorScheme.primary)
       : Colors.transparent;
 
   final hasIcon = icon != null || iconAsset != null;
@@ -53,24 +55,40 @@ Widget buildButtonTextLogo(
         ),
         shadowColor: theme.colorScheme.shadow.withAlpha(25),
       ),
+
+      /// 🎯 Si aligné à gauche → Stack, sinon → Row
       child: hasIcon && alignIconStart
-          ? Stack(
-              alignment: Alignment.center,
+          ? Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8.0),
-                    child: icon != null
-                        ? Icon(icon, size: 20)
-                        : Image.asset(iconAsset!, width: 20, height: 20),
+                Row(
+                  children: [
+                    if (icon != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Icon(icon, size: 20),
+                      ),
+                    if (iconAsset != null)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: Image.asset(iconAsset, width: 20, height: 20),
+                      ),
+                  ],
+                ),
+                Expanded(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
-            Text( 
-                label,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
-                      ),
+                if (endIcon != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Icon(endIcon, size: 20),
+                  )
+                else
+                  const SizedBox(width: 20), // pour garder l'équilibre visuel
               ],
             )
           : Row(
@@ -94,6 +112,11 @@ Widget buildButtonTextLogo(
                     style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ),
+                if (endIcon != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8.0),
+                    child: Icon(endIcon, size: 20),
+                  ),
               ],
             ),
     ),

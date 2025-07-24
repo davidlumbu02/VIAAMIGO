@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/services/auth_service.dart';
 import 'package:viaamigo/src/utilitaires/theme/ThemedScaffoldWrapper.dart';
+import 'package:viaamigo/src/utilitaires/theme/app_colors.dart';
 //import 'package:viaamigo/src/fonctionnalites/dashbord_home/screens/smart_content_card.dart';
 
 /// Enum pour déterminer la position des boutons contextuels
@@ -16,6 +17,7 @@ class DashboardHomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+     final colors = theme.extension<AppColors>()!;
 
     return ThemedScaffoldWrapper(
       child: Scaffold(
@@ -32,14 +34,8 @@ class DashboardHomePage extends StatelessWidget {
                 20,
               ),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    theme.colorScheme.primary,
-                    theme.colorScheme.primary,
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                color: theme.colorScheme.primary,
+  
                 borderRadius: const BorderRadius.vertical(
                   bottom: Radius.circular(35),
                 ),
@@ -54,18 +50,10 @@ class DashboardHomePage extends StatelessWidget {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          //const SizedBox(height: 10),
-                          /*Text(
-                            'Bonjour, David 👋',
+                          Text(
+                            'Welcome \nOn ViaAmigo',
                             style: theme.textTheme.titleLarge?.copyWith(
                               color: theme.colorScheme.onPrimary,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),*/
-                          Text(
-                            'Bienvenue sur ViaAmigo',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onPrimary.withAlpha(180),
                             ),
                           ),
                         ],
@@ -102,23 +90,7 @@ class DashboardHomePage extends StatelessWidget {
                                 ),
                               ],
                             )
-                            ,/*
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: theme.colorScheme.onPrimary.withAlpha(30),
-                        child: Icon(
-                          Icons.logout,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      ),
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: theme.colorScheme.onPrimary.withAlpha(30),
-                        child: Icon(
-                          Icons.notifications_none,
-                          color: theme.colorScheme.onPrimary,
-                        ),
-                      ),*/
+,
                     ],
                   ),
       
@@ -130,8 +102,9 @@ class DashboardHomePage extends StatelessWidget {
                       _quickShortcut(
                         theme,
                         LucideIcons.packagePlus,
-                        'Publish a package ',
+                        'Send a package',
                         ShortcutPosition.left,
+                         iconColor: colors.parcelColor,
                         onTap: () {
                         },
                       ),
@@ -139,8 +112,9 @@ class DashboardHomePage extends StatelessWidget {
                       _quickShortcut(
                         theme,
                         LucideIcons.car,
-                        'Publish a trip',
+                        'Offer a trip',
                         ShortcutPosition.right,
+                        iconColor: colors.parcelColor,
                         onTap: () {
                         },
                       ),
@@ -184,9 +158,7 @@ class DashboardHomePage extends StatelessWidget {
       
                     ],
                   ),
-      //const SizedBox(height: 20),
-                 // const SmartContextCardArea(), // ✅ Correct ici
-      
+
                 ],
               ),
             ),
@@ -197,13 +169,23 @@ class DashboardHomePage extends StatelessWidget {
   }
 
   /// 🎯 Génère un bouton contextuel stylé (gauche/droite) pour l'en-tête
- Widget _quickShortcut(
+/// 🎯 Génère un bouton contextuel stylé (gauche/droite) pour l'en-tête du dashboard.
+/// Paramètres :
+/// - [theme] : le thème actuel
+/// - [icon] : l’icône à afficher
+/// - [label] : le texte du bouton
+/// - [position] : position gauche ou droite pour arrondir correctement
+/// - [iconColor] : couleur personnalisée de l’icône et du texte (ex: driverColor ou parcelColor)
+/// - [onTap] : action au clic
+Widget _quickShortcut(
   ThemeData theme,
   IconData icon,
   String label,
   ShortcutPosition position, {
-  void Function()? onTap, // 👈 Pour ajouter une action au clic
+  Color? iconColor,
+  void Function()? onTap,
 }) {
+  // 🎨 Détermine les coins arrondis selon la position
   BorderRadius borderRadius;
   switch (position) {
     case ShortcutPosition.left:
@@ -219,31 +201,36 @@ class DashboardHomePage extends StatelessWidget {
       );
       break;
     default:
-      borderRadius = BorderRadius.zero;
+      borderRadius = BorderRadius.circular(20);
   }
 
   return Expanded(
     child: AspectRatio(
-      aspectRatio: 1.8,
+      aspectRatio: 1.8, // 📱 Garde une taille responsive
       child: Material(
-        color: theme.colorScheme.surface,
+        color: theme.colorScheme.surface, // Fond du bouton
         borderRadius: borderRadius,
         child: InkWell(
           borderRadius: borderRadius,
           onTap: onTap,
-          splashColor: theme.colorScheme.primary.withAlpha(25),
+          splashColor: (iconColor ?? theme.colorScheme.primary).withAlpha(25), // Couleur splash basée sur l’icône
           child: Center(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 20, color: theme.colorScheme.primary),
+                Icon(
+                  icon,
+                  size: 20,
+                  color: iconColor ?? theme.colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     label,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.labelLarge?.copyWith(
-                      color: theme.colorScheme.primary,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: iconColor ?? theme.colorScheme.primary,
                     ),
                   ),
                 ),

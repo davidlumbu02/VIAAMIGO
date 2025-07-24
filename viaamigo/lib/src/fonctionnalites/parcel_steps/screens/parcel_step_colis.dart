@@ -1,147 +1,1173 @@
+import 'dart:io';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
+//import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
+import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
+import 'package:viaamigo/shared/controllers/navigationcontroller.dart';
+import 'package:viaamigo/shared/widgets/custom_widget.dart';
+import 'package:viaamigo/shared/widgets/my_button.dart';
+import 'package:viaamigo/shared/widgets/theme_button.dart';
+import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_mixim.dart';
+import 'package:viaamigo/src/utilitaires/theme/app_colors.dart';
+import 'package:viaamigo/shared/widgets/build_button_text_logo.dart';
+import 'package:viaamigo/shared/widgets/custom_text_field.dart';
+
+class ParcelStepColis extends StatefulWidget  {
+  const ParcelStepColis({super.key});
+
+   @override
+  ParcelStepColisState createState() => ParcelStepColisState();
+}
 
 
-class ParcelStepColis extends StatelessWidget {
+  class ParcelStepColisState extends State<ParcelStepColis> {
+  // ✅ Récupération du controller ParcelsController
   final controller = Get.find<ParcelsController>();
+  
+   int get MAX_PHOTOS => controller.maxPhotos; 
+  final ImagePicker _picker = ImagePicker();
+  final RxBool isUploadingPhoto = false.obs;
+  // ✅ Variables GetX 
+  final RxBool useExactDimensions = false.obs;
+  final RxString selectedSize = ''.obs;
+  final RxString selectedWeight = ''.obs;
+  final RxBool lengthHasError = false.obs;
+  final RxBool widthHasError = false.obs;
+  final RxBool heightHasError = false.obs;
+  final RxBool quantityHasError = false.obs;
+  final RxBool titleHasError = false.obs;
+  final RxBool sizeHasError = false.obs;
+  final RxBool weightHasError = false.obs;
+  
+  // ✅ Contrôleurs late
+  late TextEditingController quantityController;
+  late TextEditingController titleController;
+  late TextEditingController descriptionController;
+  late TextEditingController lengthController;
+  late TextEditingController widthController;
+  late TextEditingController heightController;
+  
 
-  ParcelStepColis({super.key});
 
+  @override
+  void initState() {
+    super.initState();
+    _initializeForm();
+  }
+void _initializeForm() {
+  final parcel = controller.currentParcel.value;
+  
+  if (parcel != null) {
+    quantityController = TextEditingController(text: parcel.quantity.toString());
+    titleController = TextEditingController(text: parcel.title);
+    descriptionController = TextEditingController(text: parcel.description);
+    lengthController = TextEditingController(text: parcel.dimensions['length']?.toString() ?? '');
+    widthController = TextEditingController(text: parcel.dimensions['width']?.toString() ?? '');
+    heightController = TextEditingController(text: parcel.dimensions['height']?.toString() ?? '');
+    selectedSize.value = parcel.size;
+    //selectedWeight.value = _getWeightCategory(parcel.weight);
+    
+    // ✅ NOUVEAU : Déterminer le mode initial EXCLUSIF
+    final dims = parcel.dimensions;
+    bool hasDimensions = dims['length'] != null && dims['length'] > 0 && 
+                         dims['width'] != null && dims['width'] > 0 && 
+                         dims['height'] != null && dims['height'] > 0;
+    
+    if (hasDimensions) {
+      // Si on a des dimensions réelles, activer le mode exact
+      useExactDimensions.value = true;
+      selectedSize.value = ''; // ← Vider la taille affichée
+    } else if (parcel.size.isNotEmpty) {
+      // Si on a une taille mais pas de dimensions, mode taille
+      useExactDimensions.value = false;
+      // Garder selectedSize.value = parcel.size (déjà fait plus haut)
+    } else {
+      // Aucune donnée, mode taille par défaut
+      useExactDimensions.value = false;
+      //selectedSize.value = 'SIZE M';
+    }
+  } else {
+    quantityController = TextEditingController(text: '1');
+    titleController = TextEditingController();
+    descriptionController = TextEditingController();
+    lengthController = TextEditingController();
+    widthController = TextEditingController();  
+    heightController = TextEditingController();
+    // ✅ Valeurs par défaut
+   // selectedSize.value = 'SIZE M'; // Taille par défaut
+    useExactDimensions.value = false; // Mode tailles par défaut
+  }
+}
+  
+   String _getWeightCategory(double? weight) {
+    if (weight == null) return '';
+    
+    final Map<String, double> weightOptions = {
+      '< 5 kg': 4.9,
+      '5–10 kg': 7.5,
+      '10–30 kg': 30.0,
+      '30–50 kg': 40.0,
+      '50–70 kg': 55.0,
+      '70–100 kg': 80.0,
+      '> 100 kg': 100.0,
+    };
+    
+    for (var entry in weightOptions.entries) {
+      if (weight <= entry.value) {
+        return entry.key;
+      }
+    }
+    return '> 100 kg';
+  }
+void _onDimensionModeChanged(bool useExact) {
+  useExactDimensions.value = useExact;
+  
+  if (!useExact) {
+    // Passage en mode tailles prédéfinies : vider les dimensions
+    lengthController.clear();
+    widthController.clear();
+    heightController.clear();
+    lengthHasError.value = false;
+    widthHasError.value = false;
+    heightHasError.value = false;
+  }
+  // Note: on ne vide pas selectedSize car on garde la taille dans les deux modes
+}
+
+ @override
+  void dispose() {
+    // ✅ Libération de la mémoire
+    quantityController.dispose();
+    titleController.dispose();
+    descriptionController.dispose();
+    lengthController.dispose();
+    widthController.dispose();
+    heightController.dispose();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final parcel = controller.currentParcel.value!;
+    final colors = theme.extension<AppColors>()!;
+    //parcel model
+    final  parcel = controller.currentParcel.value;
+    if (parcel == null) {
+      return const Center(child: Text("⛔ package not initialized", style: TextStyle(color: Colors.red)));
+    }
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: ListView(
+    if (parcel.weight > 0 && selectedWeight.value.isEmpty) {//if (parcel.weight != null) {
+      selectedWeight.value = _getWeightCategory(parcel.weight);
+    }
+
+    return Scaffold(
+      backgroundColor: colors.parcelColor,
+      body: Column(
         children: [
-          Text("Photos du colis", style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ...parcel.photos.map((photoUrl) => Stack(
-                    alignment: Alignment.topRight,
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(photoUrl, width: 100, height: 100, fit: BoxFit.cover),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18),
-                        onPressed: () => controller.removePhoto(photoUrl),
-                      )
-                    ],
-                  )),
-              GestureDetector(
-                onTap: () {
-                  // Intègre ton image picker ici (ex: ImagePicker, FilePicker, etc.)
-                  // Exemple simplifié : controller.addPhoto("https://dummyimage.com/100x100");
-                },
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: theme.colorScheme.outline.withAlpha(77)),
-                  ),
-                  child: const Center(child: Icon(Icons.add_a_photo_outlined)),
+          buildHeader(context),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    sectionTitle(context, "Package photos"),
+                    _photoPicker(context, parcel),
+                    const SizedBox(height: 24),
+
+                    sectionTitle(context, "Description"),
+                          Row(
+                          children: [
+                            Expanded(
+                              flex: 2,
+                              child:  Obx(() =>CustomTextField(
+                                controller: quantityController,
+                                //hintText: 'Quantité',
+                                keyboardType: TextInputType.number,
+                                borderRadius: 10,
+                                isTransparent: true,
+                                borderColor: quantityHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77), // ✅ ICI
+                                onChanged: (_) => quantityHasError.value = false,
+                                
+                              ),)
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              flex: 5,
+                              child:  Obx(() =>CustomTextField(
+                                controller: titleController,
+                                labelText: 'Title',
+                                hintText: 'Ex: Handbag, TV...',
+                                //onSubmitted: (val) => controller.updateField('title', val),
+                                borderRadius: 10,
+                                isTransparent: true,
+                                borderColor: titleHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
+                               onChanged: (_) => titleHasError.value = false,
+                              ),)
+                            )
+                          ],
+                        ),
+
+
+                    const SizedBox(height: 24),
+                    sectionTitle(context, "Dimensions"),
+                    Obx(() => Row(
+                          children: [
+                            Text("I know the exact dimensions", style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                            const Spacer(),
+                            Switch(value: useExactDimensions.value, onChanged: _onDimensionModeChanged),
+                            //Switch(value: useExactDimensions.value, onChanged: useExactDimensions.call),
+                          ],
+                        )),
+                    const SizedBox(height: 8),
+                    Obx(() => useExactDimensions.value 
+                      ? _exactDimensions(parcel)
+                      : buildButtonTextLogo(
+                          context,
+
+                          label: selectedSize.value.isNotEmpty 
+                              ? selectedSize.value 
+                              : "Choose a size",
+                          icon: LucideIcons.ruler,
+                          isFilled: false,
+                          alignIconStart: true,
+                          borderRadius: 10,
+                          height: 50,
+                          endIcon: Icons.expand_more,
+                          bordercolerput: sizeHasError.value
+                          ? Colors.red
+                          : theme.colorScheme.primary.withAlpha(77),
+                          onTap: () async {
+                            // Utiliser la valeur actuelle de selectedSize comme référence
+                            final currentSize = selectedSize.value.isNotEmpty 
+                                ? selectedSize.value 
+                                : controller.currentParcel.value?.size ?? "";
+                            
+                            await showParcelSizeSelectorModal(context, currentSize, (selected) {
+                              
+                              controller.updateField('size', selected);
+                              // CORRECTION: Mettre à jour selectedSize.value ici pour maintenir la cohérence
+                              selectedSize.value = selected;
+                            });
+                          },
+                          outlined: true,
+                        )
+                    ),
+
+                    const SizedBox(height: 24),
+                    sectionTitle(context, "Weight"),
+                    _openWeightModal(context),
+
+                    const SizedBox(height: 32),
+                    sectionTitle(context, "Additional info"),
+                    CustomTextField(
+                      controller: descriptionController,
+                      hintText: "Ex: The longest box is 2m15, the heaviest is a sofa",
+                      labelText: "infos",
+                      onSubmitted: (val) => controller.updateField('description', val),
+                      maxLines: 6,
+                      borderRadius: 10,
+                      isTransparent: true,
+                      borderColor: theme.colorScheme.primary.withAlpha(77),
+                    ),
+
+                    const SizedBox(height: 32),
+                    MyButton(
+                      onTap: () {
+                        if (_validateAllFields()) {
+                          // Save all data (weight is already saved in modal)
+                          controller.updateField('title', titleController.text.trim());
+                          controller.updateField('description', descriptionController.text.trim());
+                          controller.updateField('quantity', int.tryParse(quantityController.text.trim()) ?? 1);
+                          controller.calculateEstimatePrice();
+                          
+                          // ✅ NOUVEAU : SOIT/SOIT exclusif
+                          if (useExactDimensions.value) {
+                            // Mode dimensions exactes : dimensions réelles + size = vide/null
+                            // Les dimensions sont déjà sauvegardées dans _validateAndSaveDimensions()
+                            controller.updateField('size', ''); // ← Vider la taille
+                          } else {
+                            // Mode tailles prédéfinies : taille + dimensions = 0
+                            controller.updateField('size', selectedSize.value);
+                            controller.updateField('dimensions', {'length': 0, 'width': 0, 'height': 0});
+                          }
+                          controller.nextStep();
+                        }
+                      },
+                      text: "Next step",
+                      height: 50,
+                      width: double.infinity,
+                      borderRadius: 30,
+                    ),
+                    const SizedBox(height: 80),
+                  ],
                 ),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-          Text("Titre du colis", style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: parcel.title,
-            onChanged: (value) => controller.updateField('title', value),
-            decoration: const InputDecoration(hintText: "Ex: Vélo d’occasion"),
-          ),
-
-          const SizedBox(height: 24),
-          Text("Description", style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          TextFormField(
-            initialValue: parcel.description,
-            onChanged: (value) => controller.updateField('description', value),
-            decoration: const InputDecoration(hintText: "Détails utiles pour le transport"),
-            maxLines: 3,
-          ),
-
-          const SizedBox(height: 24),
-          Text("Dimensions et poids", style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  initialValue: parcel.dimensions['length'].toString(),
-                  onChanged: (val) => controller.updateField('dimensions', {
-                    'length': double.tryParse(val) ?? 0,
-                    'width': parcel.dimensions['width'],
-                    'height': parcel.dimensions['height'],
-                  }),
-                  decoration: const InputDecoration(labelText: "Longueur (cm)"),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  initialValue: parcel.dimensions['width'].toString(),
-                  onChanged: (val) => controller.updateField('dimensions', {
-                    'length': parcel.dimensions['length'],
-                    'width': double.tryParse(val) ?? 0,
-                    'height': parcel.dimensions['height'],
-                  }),
-                  decoration: const InputDecoration(labelText: "Largeur (cm)"),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: TextFormField(
-                  initialValue: parcel.dimensions['height'].toString(),
-                  onChanged: (val) => controller.updateField('dimensions', {
-                    'length': parcel.dimensions['length'],
-                    'width': parcel.dimensions['width'],
-                    'height': double.tryParse(val) ?? 0,
-                  }),
-                  decoration: const InputDecoration(labelText: "Hauteur (cm)"),
-                  keyboardType: TextInputType.number,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-          TextFormField(
-            initialValue: parcel.weight.toString(),
-            onChanged: (val) => controller.updateField('weight', val),
-            decoration: const InputDecoration(labelText: "Poids (kg)"),
-            keyboardType: TextInputType.number,
-          ),
-
-          const SizedBox(height: 24),
-          Text("Type d'objet", style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            value: parcel.category,
-            onChanged: (val) => controller.updateField('category', val),
-            items: const [
-              DropdownMenuItem(value: 'normal', child: Text("Objet standard")),
-              DropdownMenuItem(value: 'fragile', child: Text("Fragile")),
-              DropdownMenuItem(value: 'perishable', child: Text("Périssable")),
-              DropdownMenuItem(value: 'valuable', child: Text("Valeur")),
-            ],
-          ),
+            ),
+          )
         ],
       ),
     );
   }
+
+
+
+
+Widget _photoPicker(BuildContext context, ParcelModel parcel) {
+  final theme = Theme.of(context);
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      // ✅ Afficher le nombre de photos actuel
+      Obx(() {
+        //final photos = controller.currentParcel.value?.photos ?? [];
+        final photos = controller.photosList;
+        final canAddMore = photos.length < MAX_PHOTOS;
+        
+        return GestureDetector(
+          onTap: (isUploadingPhoto.value || !canAddMore) ? null : _showImageSourceModal,
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: !canAddMore 
+                  ? Colors.grey.withAlpha(77)
+                  : isUploadingPhoto.value 
+                    ? Colors.grey.withAlpha(77)
+                    : theme.colorScheme.primary.withAlpha(77)
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Column(
+              children: [
+                if (isUploadingPhoto.value)
+                  const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: CircularProgressIndicator(strokeWidth: 3),
+                  )
+                else if (!canAddMore)
+                  Icon(Icons.photo_library, size: 32, color: Colors.grey.shade400)
+                else
+                  const Icon(Icons.camera_alt_outlined, size: 32, color: Colors.grey),
+                
+                const SizedBox(height: 8),
+                Text(
+                  isUploadingPhoto.value 
+                    ? "Uploading..." 
+                    : !canAddMore 
+                      ? "Maximum $MAX_PHOTOS photos reached"
+                      : "Add photos (${photos.length}/$MAX_PHOTOS)", 
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: !canAddMore ? Colors.grey : null,
+                  )
+                ),
+                
+                if (canAddMore) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withAlpha(77),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      "AI-analyzed photos", 
+                      style: theme.textTheme.bodyLarge?.copyWith(
+                        fontWeight: FontWeight.bold, 
+                        color: Colors.white
+                      )
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: "Add photos, we'll ",
+                          style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)
+                        ),
+                        TextSpan(
+                          text: "handle the rest", 
+                          style: theme.textTheme.bodyLarge?.copyWith(
+                            fontWeight: FontWeight.bold, 
+                            color: theme.colorScheme.primary
+                          )
+                        ),
+                      ],
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }),
+
+      const SizedBox(height: 16),
+
+      // ✅ Photos existantes en une seule ligne horizontale scrollable
+      Obx(() {
+        //final photos = controller.currentParcel.value?.photos ?? [];
+        final photos = controller.photosList;
+        if (photos.isEmpty) {
+          return const SizedBox.shrink(); // N'affiche rien si pas de photos
+        }
+        
+        return SizedBox(
+          height: 100, // ✅ Hauteur fixe pour la ligne de photos
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal, // ✅ Scroll horizontal
+            child: Row(
+              children: [
+                ...photos.asMap().entries.map(
+                  (entry) {
+                    final index = entry.key;
+                    final photoUrl = entry.value;
+                    
+                    return Container(
+                      margin: EdgeInsets.only(
+                        right: index < photos.length - 1 ? 12 : 0, // ✅ Espacement entre les photos
+                      ),
+                      child: Stack(
+                        alignment: Alignment.topRight,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: _buildPhotoWidget(photoUrl),
+                            
+                          ),
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.black.withAlpha(128),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.close, size: 14, color: Colors.white),
+                              onPressed: () => controller.removePhoto(photoUrl),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        );
+      }),
+    ],
+  );
+}
+
+
+// ✅ Méthode séparée pour construire l'image
+Widget _buildPhotoWidget(String photoUrl) {
+  // Si c'est un chemin local (commence par /)
+  if (photoUrl.startsWith('/')) {
+    return Image.file(
+      File(photoUrl),
+      width: 90,
+      height: 90,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: 100,
+          height: 100,
+          color: Colors.grey[300],
+          child: const Icon(Icons.error),
+        );
+      },
+    );
+  } else {
+    // Si c'est une URL réseau
+    return Image.network(
+      photoUrl,
+      width: 100,
+      height: 100,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        return Container(
+          width: 100,
+          height: 100,
+          color: Colors.grey[300],
+          child: const Icon(Icons.error),
+        );
+      },
+    );
+  }
+}
+
+  Widget _exactDimensions(ParcelModel parcel) {
+    final theme = Theme.of(context);
+    return Row(
+      children: [
+        Expanded(
+          child:  Obx(() => CustomTextField(
+            controller: lengthController,
+            hintText: 'Length',
+            keyboardType: TextInputType.number,
+            //onSubmitted: (val) => controller.updateDimension('length', val),
+            borderRadius: 10,
+            isTransparent: true,
+            borderColor: lengthHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
+          ),),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child:  Obx(() =>CustomTextField(
+            controller: widthController,
+            hintText: 'Width',
+            keyboardType: TextInputType.number,
+           // onSubmitted: (val) => controller.updateDimension('width', val),
+            borderRadius: 10,
+            isTransparent: true,
+            borderColor: widthHasError.value ? Colors.red :  theme.colorScheme.primary.withAlpha(77),
+          ),),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child:  Obx(() =>CustomTextField(
+            controller: heightController,
+            hintText: 'Height',
+            keyboardType: TextInputType.number,
+          //  onSubmitted: (val) => controller.updateDimension('height', val),
+            borderRadius: 10,
+            isTransparent: true,
+            borderColor: heightHasError.value ? Colors.red :  theme.colorScheme.primary.withAlpha(77),
+          ),
+        ),),
+      ],
+    );
+  }
+
+  Widget _openWeightModal(BuildContext context) {
+  return Obx(() => buildButtonTextLogo(
+    context,
+    label: selectedWeight.value.isNotEmpty ? selectedWeight.value : "Choose a weight",
+    icon: LucideIcons.dumbbell,
+    isFilled: false,
+    alignIconStart: true,
+    height: 50,
+    borderRadius: 10,
+    endIcon: Icons.expand_more,
+    bordercolerput: weightHasError.value 
+        ? Colors.red 
+        : Theme.of(context).colorScheme.primary.withAlpha(77),
+    onTap: () async {
+      final theme = Theme.of(context);
+      final navigationController = Get.find<NavigationController>();
+
+      final Map<String, double> options = {
+        '< 5 kg': 4.9,
+        '5–10 kg': 7.5,
+        '10–30 kg': 30.0,
+        '30–50 kg': 40.0,
+        '50–70 kg': 55.0,
+        '70–100 kg': 80.0,
+        '> 100 kg': 100.0,
+      };
+
+      // ✅ UTILISER showAppBottomSheet
+      await navigationController.showAppBottomSheet<void>(
+        isScrollControlled: true,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        backgroundColor: theme.colorScheme.surface, 
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Handle du modal
+                Container(
+                  width: 45,
+                  height: 5,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                
+                // Titre
+                Text(
+                  "Choose a weight", 
+                  style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+                ),
+                const SizedBox(height: 20),
+                
+                // Options de poids
+                ...options.entries.map((entry) {
+                  final bool selected = selectedWeight.value == entry.key;
+
+                  return Container(
+                    height: 55,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: selected
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.outlineVariant,
+                        width: 1.5,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      color: theme.colorScheme.surface,
+                    ),
+                    child: ListTile(
+                      title: Text(
+                        entry.key,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: selected ? theme.colorScheme.primary : null,
+                        ),
+                      ),
+                      trailing: selected
+                          ? Icon(Icons.check_circle, color: theme.colorScheme.primary)
+                          : null,
+                      onTap: () {
+                        // ✅ Mettre à jour les valeurs
+                        controller.updateField('weight', entry.value);
+                        selectedWeight.value = entry.key;
+                        // ✅ Reset l'erreur quand on sélectionne
+                        weightHasError.value = false;
+                        
+                        // ✅ Fermer le modal
+                        Get.back();
+                      },
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ),
+      );
+    },
+    outlined: true,
+  ));
+}
+  void safePop(BuildContext context) {
+  if (Navigator.of(context).canPop()) {
+    Navigator.of(context).pop();
+  }
+}
+bool _validateAllFields() {
+  bool isValid = true;
+  
+  // Quantity validation
+  final quantity = int.tryParse(quantityController.text.trim());
+  quantityHasError.value = quantity == null || quantity <= 0;
+  if (quantityHasError.value) isValid = false;
+  
+  // Title validation
+  titleHasError.value = titleController.text.trim().isEmpty;
+  if (titleHasError.value) isValid = false;
+  
+  // Weight validation
+   // ✅ Weight validation avec weightHasError
+  weightHasError.value = selectedWeight.value.isEmpty;
+  if (selectedWeight.value.isEmpty) {
+    Get.snackbar(
+      "Missing weight",
+      "Please choose a weight",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.orange,
+      colorText: Colors.white,
+    );
+    isValid = false;
+  }
+  
+  // Size validation if selection mode
+// ✅ NOUVEAU : Validation selon le mode choisi SANS custom
+if (useExactDimensions.value) {
+  // Mode dimensions exactes : valider les dimensions ET la taille
+  if (!_validateAndSaveDimensions()) isValid = false;
+  sizeHasError.value = selectedSize.value.isEmpty;
+  if (sizeHasError.value) isValid = false;
+} else {
+  // Mode tailles prédéfinies : valider seulement la taille
+  sizeHasError.value = selectedSize.value.isEmpty;
+  if (sizeHasError.value) isValid = false;
+}
+  
+  if (!isValid) {
+    Get.snackbar(
+      "Missing fields",
+      "Please fill in all required fields",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+  }
+  
+  return isValid;
+}
+
+bool _validateAndSaveDimensions() {
+  final lengthText = lengthController.text.trim();
+  final widthText = widthController.text.trim();
+  final heightText = heightController.text.trim();
+
+  final double? length = double.tryParse(lengthText);
+  final double? width = double.tryParse(widthText);
+  final double? height = double.tryParse(heightText);
+
+  lengthHasError.value = length == null || length <= 0;
+  widthHasError.value = width == null || width <= 0;
+  heightHasError.value = height == null || height <= 0;
+
+  if (lengthHasError.value || widthHasError.value || heightHasError.value) {
+    Get.snackbar(
+   "Invalid fields",
+  "Please enter valid dimensions (non-zero and numeric)",
+      snackPosition: SnackPosition.BOTTOM,
+      backgroundColor: Colors.red,
+      colorText: Colors.white,
+    );
+    return false;
+  }
+
+  controller.updateDimension('length', lengthText);
+  controller.updateDimension('width', widthText);
+  controller.updateDimension('height', heightText);
+  // ✅ NOUVEAU : Définir size = 'custom' pour les dimensions exactes
+//controller.updateField('size', 'custom');
+  return true;
+}
+
+
+Future<void> showParcelSizeSelectorModal(BuildContext context, String currentValue, void Function(String) onSelected) async {
+  final theme = Theme.of(context);
+  final navigationController = Get.find<NavigationController>();
+
+  final List<Map<String, dynamic>> options = [
+  {
+    'title': 'SIZE S',
+    'subtitle': 'Fits in a shoebox (phone, keys, soft toy...)',
+    'icon': Icons.inventory_2_outlined,
+    'value': 'SIZE S',
+  },
+  {
+    'title': 'SIZE M',
+    'subtitle': 'Fits in a cabin suitcase (laptop, wine crate...)',
+    'icon': Icons.work_outline,
+    'value': 'SIZE M',
+  },
+  {
+    'title': 'Size L',
+    'subtitle': 'Fits in 4 cabin suitcases (painting, TV, travel crib...)',
+    'icon': Icons.chair_alt_outlined,
+    'value': 'SIZE L',
+  },
+  {
+    'title': 'SIZE XL',
+    'subtitle': 'Fits in a station wagon or minivan (dresser, armchair...)',
+    'icon': Icons.airport_shuttle_outlined,
+    'value': 'SIZE XL',
+  },
+  {
+    'title': 'SIZE XXL',
+    'subtitle': 'Fits in a small van (sofa, wardrobe, bed...)',
+    'icon': Icons.king_bed_outlined,
+    'value': 'SIZE XXL',
+  },
+];
+
+  
+  // ✅ UTILISER showAppBottomSheet au lieu de showModalBottomSheet
+  await navigationController.showAppBottomSheet<void>(
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+    ),
+    backgroundColor: theme.colorScheme.surface, 
+    child: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle du modal
+            Container(
+              width: 45,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            
+            // Titre
+            Text(
+              "Choose a size", 
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+            ),
+            const SizedBox(height: 20),
+            
+            // Options
+            ...options.map((option) {
+              final bool selected = option['value'] == currentValue;
+
+              return Container(
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                decoration: BoxDecoration(
+                  border: Border.all(
+                    color: selected ? theme.colorScheme.primary : theme.colorScheme.outlineVariant,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  color: theme.colorScheme.surface,
+                ),
+                child: ListTile(
+                  leading: Icon(option['icon'], color: selected ? theme.colorScheme.primary : null),
+                  title: Text(option['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(option['subtitle'], style: const TextStyle(fontSize: 13)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onTap: () {
+                    // ✅ Mettre à jour les valeurs
+                    onSelected(option['value']);
+                    //selectedSize.value = option['value'];
+                    
+                    // ✅ Fermer le modal avec Get.back()
+                    Get.back();
+                  },
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _showImageSourceModal() async {
+  // ✅ Vérifier la limite avant d'ouvrir le modal
+  final currentPhotos = controller.currentParcel.value?.photos ?? [];
+  if (currentPhotos.length >= MAX_PHOTOS) {
+    Get.snackbar(
+      "Limite atteinte", 
+      "Vous ne pouvez ajouter que ${controller.maxPhotos} photos maximum",
+      backgroundColor: Colors.orange,
+      colorText: Colors.white,
+    );
+    return;
+  }
+
+  final theme = Theme.of(context);
+  final navigationController = Get.find<NavigationController>();
+  final remainingSlots = controller.getRemainingPhotoSlots();
+  
+  // ✅ UTILISER showAppBottomSheet
+  await navigationController.showAppBottomSheet<void>(
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    backgroundColor: theme.colorScheme.surface, 
+    child: SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle du modal
+            Container(
+              width: 45,
+              height: 5,
+              margin: const EdgeInsets.only(bottom: 16),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            
+            // Titre
+            Text(
+              "Add photos ($remainingSlots remaining)", 
+              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)
+            ),
+            const SizedBox(height: 20),
+            
+            // Options de photo
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                themeButton(
+                  context,
+                  icon: LucideIcons.image,
+                  label: 'Photos',
+                  isSelected: isUploadingPhoto.value,
+                  onTap: () {
+                    Get.back(); // ✅ Fermer le modal d'abord
+                    _pickMultipleImages();
+                  },
+                ),
+                themeButton(
+                  context,
+                  icon: LucideIcons.camera,
+                  label: 'Camera',
+                  isSelected: isUploadingPhoto.value,
+                  onTap: () {
+                    Get.back(); // ✅ Fermer le modal d'abord
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                themeButton(
+                  context,
+                  icon: LucideIcons.fileInput,
+                  label: 'Files',
+                  isSelected: isUploadingPhoto.value,
+                  onTap: () {
+                    Get.back(); // ✅ Fermer le modal d'abord
+                    _pickFilesImages();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+Future<void> _pickImage(ImageSource source) async {
+  try {
+    // ✅ Vérifier la limite avant de prendre la photo
+    final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    if (currentPhotos.length >= MAX_PHOTOS) {
+      Get.snackbar(
+        "Limite atteinte", 
+        "Vous ne pouvez ajouter que ${controller.maxPhotos}  photos maximum",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    isUploadingPhoto.value = true;
+    
+    // Vérifier les permissions
+    if (source == ImageSource.camera) {
+      final cameraStatus = await Permission.camera.request();
+      if (!cameraStatus.isGranted) {
+        Get.snackbar("Permission denied", "Camera access is required");
+        return;
+      }
+    }
+    
+    final XFile? image = await _picker.pickImage(
+      source: source,
+      maxWidth: 1800,
+      maxHeight: 1800,
+      imageQuality: 85,
+    );
+    
+    if (image != null) {
+      //await _uploadPhoto(image.path);
+      await controller.addPhoto(image.path);
+    }
+  } catch (e) {
+    Get.snackbar("Error", "Failed to pick image: $e");
+  } finally {
+    isUploadingPhoto.value = false;
+  }
+}
+// ✅ Pour plusieurs photos (galerie)
+Future<void> _pickMultipleImages() async {
+  try {
+    // ✅ Calculer combien de photos on peut encore ajouter
+    final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    final remainingSlots = MAX_PHOTOS - currentPhotos.length;
+    
+    if (remainingSlots <= 0) {
+      Get.snackbar(
+        "Limite atteinte", 
+        "Vous ne pouvez ajouter que $MAX_PHOTOS photos maximum",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    isUploadingPhoto.value = true;
+    
+    final List<XFile> images = await _picker.pickMultiImage(
+      maxWidth: 1800,
+      maxHeight: 1800,
+      imageQuality: 85,
+    );
+    
+    if (images.isNotEmpty) {
+      // ✅ Limiter au nombre de slots restants
+      final limitedImages = images.take(remainingSlots).toList();
+      
+      for (final image in limitedImages) {
+        await controller.addPhoto(image.path);
+      }
+      
+      // ✅ Message informatif adapté
+      if (images.length > remainingSlots) {
+        Get.snackbar(
+          "Info", 
+          "Seules les $remainingSlots premières photos ont été ajoutées (limite: ${controller.maxPhotos})",
+          backgroundColor: Colors.blue,
+          colorText: Colors.white,
+        );
+      } else if (limitedImages.isNotEmpty) {
+        Get.snackbar(
+          "Succès", 
+          "${limitedImages.length} photo${limitedImages.length > 1 ? 's' : ''} ajoutée${limitedImages.length > 1 ? 's' : ''}",
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      }
+    }
+  } catch (e) {
+    Get.snackbar("Error", "Failed to pick images: $e");
+  } finally {
+    isUploadingPhoto.value = false;
+  }
+}
+
+// ✅ NOUVELLE MÉTHODE: Pour sélectionner des images depuis les fichiers
+Future<void> _pickFilesImages() async {
+  try {
+    // ✅ Vérifier la limite avec le contrôleur
+    final remainingSlots = controller.getRemainingPhotoSlots();
+    
+    if (remainingSlots <= 0) {
+      Get.snackbar(
+        "Limite atteinte", 
+        "Vous ne pouvez ajouter que ${controller.maxPhotos} photos maximum",
+        backgroundColor: Colors.orange,
+        colorText: Colors.white,
+      );
+      return;
+    }
+
+    isUploadingPhoto.value = true;
+    
+    // ✅ Sélectionner des fichiers images
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: true,
+      // ignore: deprecated_member_use
+      allowCompression: true,
+    );
+    
+    if (result != null && result.files.isNotEmpty) {
+      // ✅ Filtrer uniquement les fichiers avec un chemin valide
+      List<PlatformFile> validFiles = result.files
+          .where((file) => file.path != null)
+          .toList();
+      
+      if (validFiles.isEmpty) {
+        Get.snackbar(
+          "Erreur", 
+          "Aucun fichier valide sélectionné",
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+        return;
+      }
+      
+      // ✅ Limiter au nombre de slots restants
+      final limitedFiles = validFiles.take(remainingSlots).toList();
+      
+      // ✅ Valider et traiter chaque fichier
+      List<String> successfulUploads = [];
+      
+      for (final file in limitedFiles) {
+        try {
+          // Vérifier la taille du fichier (ex: max 10MB)
+          if (file.size > 10 * 1024 * 1024) {
+            Get.snackbar(
+              "Fichier trop volumineux", 
+              "${file.name} dépasse 10MB",
+              backgroundColor: Colors.orange,
+              colorText: Colors.white,
+            );
+            continue;
+          }
+          
+          // Vérifier l'extension
+          if (!_isValidImageExtension(file.extension?.toLowerCase())) {
+            Get.snackbar(
+              "Format non supporté", 
+              "${file.name} n'est pas une image valide",
+              backgroundColor: Colors.orange,
+              colorText: Colors.white,
+            );
+            continue;
+          }
+          
+          //await _uploadPhoto(file.path!);/
+          await controller.addPhoto(file.path!);
+          successfulUploads.add(file.name);
+          
+        } catch (e) {
+          Get.snackbar(
+            "Erreur upload", 
+            "Échec pour ${file.name}: $e",
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      }
+      
+      // ✅ Messages informatifs
+      if (successfulUploads.isNotEmpty) {
+        Get.snackbar(
+          "Succès", 
+          "${successfulUploads.length} fichier${successfulUploads.length > 1 ? 's' : ''} ajouté${successfulUploads.length > 1 ? 's' : ''}",
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      }
+      
+      if (validFiles.length > remainingSlots) {
+        Get.snackbar(
+          "Info", 
+          "Seuls les $remainingSlots premiers fichiers ont été traités (limite: ${controller.maxPhotos})",
+          backgroundColor: Colors.blue,
+          colorText: Colors.white,
+        );
+      }
+    }
+  } catch (e) {
+    Get.snackbar("Erreur", "Échec de sélection des fichiers: $e");
+  } finally {
+    isUploadingPhoto.value = false;
+  }
+}
+
+// ✅ MÉTHODE UTILITAIRE: Valider les extensions d'images
+bool _isValidImageExtension(String? extension) {
+  if (extension == null) return false;
+  
+  const validExtensions = [
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'tiff', 'svg'
+  ];
+  
+  return validExtensions.contains(extension.toLowerCase());
+}
 }

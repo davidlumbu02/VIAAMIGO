@@ -1,5 +1,84 @@
 plugins {
     id "com.android.application"
+    id 'com.google.gms.google-services'
+    id "kotlin-android"
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+android {
+    namespace = "com.example.viaamigo"
+    compileSdk = rootProject.ext.compileSdkVersion
+    ndkVersion = rootProject.ext.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    defaultConfig {
+        applicationId = "com.example.viaamigo"
+        minSdk = rootProject.ext.minSdkVersion
+        targetSdk = rootProject.ext.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+        multiDexEnabled = true
+    }
+
+    buildTypes {
+        debug {
+            minifyEnabled = false
+            shrinkResources = false
+        }
+        release {
+            signingConfig = signingConfigs.debug
+            minifyEnabled = false
+            shrinkResources = false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force 'androidx.core:core-ktx:1.13.1'
+        force 'androidx.core:core:1.13.1'
+        force 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    implementation "androidx.activity:activity:1.9.3"
+    implementation "androidx.multidex:multidex:2.0.1"
+    // 🔥 AJOUTEZ CES LIGNES POUR FLUTTER_FACEBOOK_AUTH
+    implementation "androidx.fragment:fragment:1.8.5"
+    implementation "androidx.appcompat:appcompat:1.7.0"
+    implementation 'com.facebook.android:facebook-login:17.0.2'
+    implementation 'com.facebook.android:facebook-core:17.0.2'
+}
+
+// 🎯 SOLUTION CORRIGÉE - Copie de l'APK après build
+task copyApk(type: Copy) {
+    from 'build/outputs/apk/debug'
+    into '../../build/app/outputs/flutter-apk'
+    include 'app-debug.apk'
+}
+
+// Force la copie après chaque build - VERSION CORRIGÉE
+afterEvaluate {
+    tasks.named('assembleDebug').configure {
+        finalizedBy copyApk
+    }
+}
+/*plugins {
+    id "com.android.application"
     // START: FlutterFire Configuration
     id 'com.google.gms.google-services'
     // END: FlutterFire Configuration
@@ -10,16 +89,16 @@ plugins {
 
 android {
     namespace = "com.example.viaamigo"
-    compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
-
+    compileSdk =  rootProject.ext.compileSdkVersion//34 //flutter.compileSdkVersion
+    ndkVersion = rootProject.ext.ndkVersion//flutter.ndkVersion
+    
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17//JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_17//JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_1_8
+        jvmTarget = '17' //JavaVersion.VERSION_1_8
     }
 
     defaultConfig {
@@ -27,21 +106,44 @@ android {
         applicationId = "com.example.viaamigo"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
-        targetSdk = flutter.targetSdkVersion
+        minSdk = rootProject.ext.minSdkVersion//23
+        targetSdk = rootProject.ext.targetSdkVersion//34//flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+         multiDexEnabled = true
     }
 
     buildTypes {
+     debug {
+            minifyEnabled = false
+            shrinkResources = false
+        }
         release {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
+             minifyEnabled = false
+             shrinkResources = false  
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    
 }
+// AJOUTEZ CETTE SECTION
+    configurations.all {
+        resolutionStrategy {
+        force 'androidx.core:core-ktx:1.13.1'
+        force 'androidx.core:core:1.12.0'
+        force 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.7'
+        }
+    }
+
 
 flutter {
     source = "../.."
 }
+dependencies {
+    implementation "androidx.activity:activity:1.9.3"
+    implementation "androidx.multidex:multidex:2.0.1"
+}*/

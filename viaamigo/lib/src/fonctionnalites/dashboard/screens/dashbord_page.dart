@@ -1,18 +1,157 @@
 // 📦 Importation des librairies nécessaires
-import 'dart:ui'; // Pour les effets de flou (BackdropFilter)
+//import 'dart:ui'; // Pour les effets de flou (BackdropFilter)
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:lucide_icons/lucide_icons.dart';
+// 'package:lucide_icons/lucide_icons.dart';
+//import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
+import 'package:viaamigo/shared/controllers/navigationcontroller.dart';
+//import 'package:viaamigo/shared/widgets/custom_bottom_bar.dart';
 
 // 📄 Importation des différentes pages de ton application
-import 'package:viaamigo/src/fonctionnalites/dashbord_home/screens/dashbordhomepage.dart';
-import 'package:viaamigo/src/fonctionnalites/message/screens/message_page.dart';
-import 'package:viaamigo/src/fonctionnalites/recherche/screens/recheche_page.dart';
-import 'package:viaamigo/src/fonctionnalites/settings_pages/screens/settingsapp.dart';
+//import 'package:viaamigo/src/fonctionnalites/dashbord_home/screens/dashbordhomepage.dart';
+//import 'package:viaamigo/src/fonctionnalites/message/screens/message_page.dart';
+//import 'package:viaamigo/src/fonctionnalites/recherche/screens/recheche_page.dart';
+//import 'package:viaamigo/src/fonctionnalites/settings_pages/screens/settingsapp.dart';
+
+//import 'package:flutter/material.dart';
+//import 'package:get/get.dart';
+//import 'package:viaamigo/shared/controllers/navigation_controller.dart';
+
+/// Page d'accueil du tableau de bord
+///
+/// Cette page contient uniquement le contenu, sans la navigation
+/// qui est gérée par le NavigationController et AppShell
+class DashboardPage extends StatelessWidget {
+  const DashboardPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // En-tête de bienvenue
+            Text(
+              "Bienvenue dans ViaAmigo",
+              style: theme.textTheme.headlineMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Envoyez et transportez des colis facilement",
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: theme.colorScheme.outline,
+              ),
+            ),
+            
+            // Espacement
+            const SizedBox(height: 24),
+            
+            // Carte d'action rapide
+            _buildQuickActionCard(
+              context,
+              title: "Besoin d'envoyer un colis ?",
+              description: "Trouvez quelqu'un qui voyage dans la bonne direction",
+              buttonText: "Créer une annonce",
+              onPressed: () {
+                // Navigation via le contrôleur centralisé
+                Get.find<NavigationController>().navigateToNamed('parcel-wizard');
+              },
+            ),
+            
+            // Contenu supplémentaire à ajouter selon vos besoins
+            const SizedBox(height: 16),
+            
+            // Vous pouvez ajouter ici le reste du contenu de votre dashboard
+            Expanded(
+              child: Center(
+                child: Text(
+                  "Contenu du dashboard",
+                  style: theme.textTheme.bodyLarge,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  /// Construit une carte d'action rapide
+  ///
+  /// [context] - Contexte BuildContext
+  /// [title] - Titre de la carte
+  /// [description] - Description de l'action
+  /// [buttonText] - Texte du bouton
+  /// [onPressed] - Action à exécuter au clic sur le bouton
+  Widget _buildQuickActionCard(
+    BuildContext context, {
+    required String title,
+    required String description,
+    required String buttonText,
+    required VoidCallback onPressed,
+  }) {
+    final theme = Theme.of(context);
+    
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Titre de la carte
+            Text(
+              title,
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            
+            // Description
+            Text(
+              description,
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 16),
+            
+            // Bouton d'action
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: onPressed,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(buttonText),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 //import 'package:viaamigo/src/fonctionnalites/settings_pages/screens/settings.dart';
 
 /// 🧭 Page principale contenant la navigation entre les différentes pages
-class DashboardPage extends StatefulWidget {
+/*class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
   @override
@@ -81,8 +220,11 @@ void _openRoleSelectorModal(BuildContext context) {
                         title1: "I want to send a package",
                         //title2: "Notify me when someone is going my way",
                         subtitle: "I'll contribute to their trip expenses",
-                        onTap: () {
-                          Navigator.pop(context);
+                        onTap: () async {
+                          Navigator.pop(context);  
+                          final controller = Get.put(ParcelsController()); // injection
+                          await controller.initParcel(); // ✅ initialise le colis AVANT
+
                           Get.toNamed('/request-ride');
                         },
                       ),    
@@ -117,48 +259,12 @@ void _openRoleSelectorModal(BuildContext context) {
 }
 
 
-  /// 👤 Ouvre le modal de profil avec un effet de flou et design futuriste
- /* void _openProfilePopup(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.transparent, // Le fond ne s'assombrit pas
-      builder: (context) {
-        return Stack(
-          children: [
-            // 🌫️ Applique un flou à l'arrière-plan
-            BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-              child: Container(
-                color: Colors.black.withAlpha(100), // Fond semi-transparent
-              ),
-            ),
 
-            // 🧩 Contenu principal du profil, avec coins arrondis et padding
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.only(
-                  top: 70,
-                  left: 12,
-                  right: 12,
-                  bottom: 15,
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(30),
-                  child: const ProfilePopup(), // 👤 Ton widget de profil
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }*/
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final navigationController = Get.put(NavigationStateController());  // Contrôleur d'état de navigation
 
     return Scaffold(
       extendBody: true, // 🔽 Permet à la BottomBar de dépasser le corps
@@ -250,13 +356,6 @@ void _openRoleSelectorModal(BuildContext context) {
         setState(() {
           selectedIndex = index; // Change la page sélectionnée
         });
-        /*if (index == 3) {
-          _openProfilePopup(context); // Si c’est le bouton profil, on ouvre le popup
-        } else {
-          setState(() {
-            selectedIndex = index; // Sinon, on change de page
-          });
-        }*/
       },
     );
   }
@@ -313,4 +412,4 @@ void _openRoleSelectorModal(BuildContext context) {
   );
 }
 
-}
+}*/

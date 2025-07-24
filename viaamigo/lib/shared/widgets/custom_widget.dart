@@ -58,10 +58,17 @@ Widget quickShortcut(ThemeData theme, IconData icon, String label, ShortcutPosit
 
 
   /// 🔘 Section title
+  /*
   Widget sectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+    );
+  }*/
+    Widget sectionTitle(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(text, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
     );
   }
 

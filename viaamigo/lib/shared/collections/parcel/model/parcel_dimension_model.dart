@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
+import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 
 
 
@@ -64,29 +65,59 @@ class ParcelDimensions {
   
   // AMÉLIORATION: Possibilité de créer des dimensions standard
   static ParcelDimensions small() {
-    return ParcelDimensions(length: 20, width: 15, height: 10);
+    return ParcelDimensions(length: 25, width: 15, height: 10);
   }
   
   static ParcelDimensions medium() {
-    return ParcelDimensions(length: 40, width: 30, height: 20);
+    return ParcelDimensions(length: 55, width: 35, height: 20);
   }
   
   static ParcelDimensions large() {
-    return ParcelDimensions(length: 60, width: 50, height: 40);
+    return ParcelDimensions(length: 80, width: 50, height: 40);
   }
-  
+  /// Dimensions pour taille XL
+static ParcelDimensions extraLarge() {
+  return ParcelDimensions(length: 120, width: 80, height: 50);
+}
+  /// Dimensions pour taille XXL  
+static ParcelDimensions doubleExtraLarge() {
+  return ParcelDimensions(length: 200, width: 100, height: 60);
+}
   // Déterminer la taille standard la plus proche
-  String getSizeCategory() {
-    final volume = this.volume;
-    
-    if (volume <= small().volume) {
-      return 'small';
-    } else if (volume <= medium().volume) {
-      return 'medium';
-    } else {
-      return 'large';
-    }
+
+  
+static ParcelDimensions fromSizeString(String sizeString) {
+  switch (sizeString) {
+    case 'SIZE S':
+      return ParcelDimensions.small();
+    case 'SIZE M':
+      return ParcelDimensions.medium();
+    case 'SIZE L':
+      return ParcelDimensions.large();
+    case 'SIZE XL':
+      return ParcelDimensions.extraLarge();
+    case 'SIZE XXL':
+      return ParcelDimensions.doubleExtraLarge();
+    default:
+      return ParcelDimensions(length: 0, width: 0, height: 0);
   }
+}
+
+String getSizeCategory() {
+  final volume = this.volume;
+  
+  if (volume <= small().volume) {
+    return 'SIZE S';
+  } else if (volume <= medium().volume) {
+    return 'SIZE M';
+  } else if (volume <= large().volume) {
+    return 'SIZE L';
+  } else if (volume <= extraLarge().volume) {
+    return 'SIZE XL';
+  } else {
+    return 'SIZE XXL';
+  }
+}
   /// Crée une copie de l'objet avec certaines dimensions modifiées
 ParcelDimensions copyWith({
   double? length,
@@ -385,57 +416,592 @@ static String generateGeohash(double lat, double lng, {int precision = 9}) {
   }
 }
 
-// lib/utils/price_calculator.dart
-// AMÉLIORATION: Utilitaire dédié au calcul de prix
+/// 🎯 CALCULATEUR DE PRIX FINAL - VERSION COMPLÈTE
+/// Intégré parfaitement avec ParcelModel et ParcelsController
 class PriceCalculator {
-  // Prix de base par km
-  static const double _basePricePerKm = 0.30; // $0.30/km
   
-  // Prix par kg
-  static const double _baseWeightPrice = 0.50; // $0.50/kg
+  // 📏 TARIFS DE BASE
+  static const double _basePricePerKm = 0.18; // CAD par km
+  static const double _minimumPrice = 20.0; // Prix minimum
+  static const double _maximumPrice = 20000.0; // Prix maximum
   
-  // Multiplicateurs pour les services express
-  static const double _expressMultiplier = 1.15; // +15%
-  static const double _economyMultiplier = 0.90; // -10%
+  // ⚖️ TARIFS SELON LE POIDS (par intervalles exacts)
+  static const Map<String, double> _weightPrices = {
+    '< 5 kg': 4.9,
+    '5–10 kg': 7.5,
+    '10–30 kg': 30.0,
+    '30–50 kg': 40.0,
+    '50–70 kg': 55.0,
+    '70–100 kg': 80.0,
+    '> 100 kg': 100.0,
+  };
   
-  // Calcul du prix estimé en fonction des paramètres du colis
+  // 🚚 MULTIPLICATEURS SELON LA VITESSE
+  static const Map<String, double> _speedMultipliers = {
+    'standard': 1.0,   // Prix normal
+    'urgent': 1.5,     // +50%
+  };
+  
+  // 🛡️ TARIFS D'ASSURANCE (forfaitaires)
+  static const Map<String, double> _insuranceFees = {
+    'none': 0.0,       // Pas d'assurance
+    'basic': 4.0,      // 4 dollars forfait
+    'premium': 8.0,    // 8 dollars forfait
+  };
+  
+  // 🏠 FRAIS DE MANUTENTION (selon assistanceLevel)
+  /*static const Map<String, double> _handlingFees = {
+    'door': 0.0,           // Au pied du véhicule = gratuit
+    'light_assist': 29.0,  // Aide avec 1 personne = 29 CAD
+    'room': 59.0,          // Transport à 2 personnes = 59 CAD
+  };*/
+
+  /// 🎯 MÉTHODE PRINCIPALE - CALCUL AVEC PARCELMODEL COMPLET
   static double calculateEstimatedPrice({
-    required double distanceKm, 
+    required double distanceKm,
     required double weightKg,
     required String deliverySpeed,
     double? declaredValue,
-    String? insuranceLevel,
+    required String insuranceLevel,
+    String? size,
+    Map<String, dynamic>? dimensions,
+    int quantity = 1,
+    Map<String, dynamic>? pickupHandling,
+    Map<String, dynamic>? deliveryHandling,
+    double? promoDiscount,
+    double? totalHandlingFees,
   }) {
-    // Prix de base en fonction de la distance et du poids
-    double distanceFactor = distanceKm * _basePricePerKm;
-    double weightFactor = weightKg * _baseWeightPrice;
     
-    // Déterminer le multiplicateur de vitesse
-    double speedMultiplier = deliverySpeed == 'express' ? _expressMultiplier : 
-                            deliverySpeed == 'economy' ? _economyMultiplier : 1.0;
-    
-    // Prix estimé basique
-    double estimatedPrice = (distanceFactor + weightFactor) * speedMultiplier;
-    
-    // Ajouter le prix de l'assurance si applicable
-    if (insuranceLevel != null && insuranceLevel != 'none' && declaredValue != null) {
-      estimatedPrice += _calculateInsurancePrice(declaredValue, insuranceLevel);
+    try {
+      // 1️⃣ VALIDATION DES DONNÉES CRITIQUES
+      if (distanceKm <= 0) return _minimumPrice;
+      if (weightKg <= 0) return _minimumPrice;
+      
+      // 2️⃣ PRIX DE BASE SELON LA DISTANCE
+      double basePrice = distanceKm * _basePricePerKm;
+      
+      // 3️⃣ PRIX SELON LE POIDS (par intervalles)
+      double weightPrice = _calculateWeightPrice(weightKg);
+      
+      // 4️⃣ SURCHARGE VOLUMÉTRIQUE (corrigée)
+      double volumeSurcharge = _calculateVolumeSurcharge(size, dimensions);
+      
+      // 5️⃣ SOUS-TOTAL DE BASE
+      double subtotalBase = basePrice + weightPrice + volumeSurcharge;
+      
+      // 6️⃣ MULTIPLICATEUR VITESSE DE LIVRAISON
+      double speedMultiplier = _speedMultipliers[deliverySpeed] ?? 1.0;
+      subtotalBase *= speedMultiplier;
+      
+      // 7️⃣ MULTIPLICATEUR QUANTITÉ
+      subtotalBase *= quantity;
+      
+      // 8️⃣ FRAIS DE MANUTENTION (pickup + delivery)
+      double? handlingFees = totalHandlingFees;
+      
+      // 9️⃣ ASSURANCE (forfaitaire)
+      double insuranceFee = _insuranceFees[insuranceLevel] ?? 0.0;
+      
+      // 🔟 SOUS-TOTAL AVANT REMISE
+      double subtotal = subtotalBase + handlingFees! + insuranceFee;
+      
+      // 1️⃣1️⃣ APPLICATION DES CODES PROMO
+      if (promoDiscount != null && promoDiscount > 0) {
+        subtotal -= promoDiscount;
+        subtotal = subtotal.clamp(0.0, double.infinity);
+      }
+      
+      // 1️⃣2️⃣ PRIX FINAL (sans frais de plateforme comme vous l'avez voulu)
+      double finalPrice = subtotal;
+      
+      // 1️⃣3️⃣ APPLICATION DES LIMITES GLOBALES
+      return finalPrice.clamp(_minimumPrice, _maximumPrice);
+      
+    } catch (e) {
+      // En cas d'erreur, retourner le prix minimum
+      print("❌ Erreur calcul prix: $e");
+      return _minimumPrice;
     }
-    
-    // Arrondir à 2 décimales
-    return double.parse(estimatedPrice.toStringAsFixed(2));
   }
-  
-  // Calculer le prix d'assurance en fonction du niveau
-  static double _calculateInsurancePrice(double declaredValue, String level) {
-    switch (level) {
-      case 'basic':
-        return declaredValue * 0.01; // 1% de la valeur
-      case 'premium':
-        return declaredValue * 0.025; // 2.5% de la valeur
-      default:
-        return 0.0;
+
+  /// 🎯 MÉTHODE SIMPLIFIÉE POUR LE CONTROLLER
+  static double calculateFromParcel(ParcelModel parcel) {
+    return calculateEstimatedPrice(
+      distanceKm: parcel.estimatedDistance ?? 0.0,
+      weightKg: parcel.weight,
+      deliverySpeed: parcel.delivery_speed,
+      declaredValue: parcel.declared_value,
+      insuranceLevel: parcel.insurance_level,
+      size: parcel.size,
+      dimensions: parcel.dimensions,
+      quantity: parcel.quantity,
+      pickupHandling: parcel.pickupHandling,
+      deliveryHandling: parcel.deliveryHandling,
+      promoDiscount: parcel.discount_amount,
+      totalHandlingFees: parcel.totalHandlingFee,
+    );
+  }
+
+  /// ⚖️ CALCUL DU PRIX SELON LE POIDS (intervalles)
+  static double _calculateWeightPrice(double weightKg) {
+    if (weightKg < 5.0) return _weightPrices['< 5 kg']!;
+    if (weightKg <= 10.0) return _weightPrices['5–10 kg']!;
+    if (weightKg <= 30.0) return _weightPrices['10–30 kg']!;
+    if (weightKg <= 50.0) return _weightPrices['30–50 kg']!;
+    if (weightKg <= 70.0) return _weightPrices['50–70 kg']!;
+    if (weightKg <= 100.0) return _weightPrices['70–100 kg']!;
+    return _weightPrices['> 100 kg']!;
+  }
+
+  /// 📦 CALCUL DE LA SURCHARGE VOLUMÉTRIQUE (logique corrigée)
+  static double _calculateVolumeSurcharge(String? size, Map<String, dynamic>? dimensions) {
+    
+    // CAS 1: Si dimensions personnalisées (custom ou dimensions remplies)
+    if (dimensions != null && 
+        dimensions['length'] != null && 
+        dimensions['width'] != null && 
+        dimensions['height'] != null) {
+      
+      try {
+        double length = (dimensions['length'] as num).toDouble();
+        double width = (dimensions['width'] as num).toDouble();
+        double height = (dimensions['height'] as num).toDouble();
+        
+        if (length > 0 && width > 0 && height > 0) {
+          return _calculateVolumeFee(length, width, height);
+        }
+      } catch (e) {
+        print("❌ Erreur calcul volume dimensions: $e");
+      }
     }
+    
+    // CAS 2: Si taille prédéfinie
+    if (size != null && size.isNotEmpty && size.startsWith('SIZE')) {
+      try {
+        Map<String, dynamic> sizeDimensions = _getSizeDimensions(size);
+        double length = (sizeDimensions['length'] as num).toDouble();
+        double width = (sizeDimensions['width'] as num).toDouble();
+        double height = (sizeDimensions['height'] as num).toDouble();
+        
+        return _calculateVolumeFee(length, width, height);
+      } catch (e) {
+        print("❌ Erreur calcul volume taille: $e");
+      }
+    }
+    
+    return 0.0;
+  }
+
+  /// 📐 CALCUL DES FRAIS VOLUMÉTRIQUES
+  static double _calculateVolumeFee(double length, double width, double height) {
+    double volumeCm3 = length * width * height;
+    double volumeM3 = volumeCm3 / 1000000; // Conversion en m³
+    
+    // Seuil gratuit : 0.1 m³
+    if (volumeM3 > 0.1) {
+      return (volumeM3 - 0.1) * 50.0; // 50 CAD par m³ supplémentaire
+    }
+    
+    return 0.0;
+  }
+
+  /// 📏 OBTENIR LES DIMENSIONS SELON LA TAILLE
+  static Map<String, dynamic> _getSizeDimensions(String size) { // ✅ AJOUT static
+    switch (size) {
+      case 'SIZE S':
+        return ParcelDimensions.small().toMap();
+      case 'SIZE M':
+        return ParcelDimensions.medium().toMap();
+      case 'SIZE L':
+        return ParcelDimensions.large().toMap();
+      case 'SIZE XL':
+        return ParcelDimensions.extraLarge().toMap();
+      case 'SIZE XXL':
+        return ParcelDimensions.doubleExtraLarge().toMap();
+      default:
+        return {'length': 0, 'width': 0, 'height': 0};
+    }
+  }
+
+  /// 🏠 CALCUL DES FRAIS DE MANUTENTION
+ /* static double _calculateHandlingFees(
+    Map<String, dynamic>? pickupHandling,
+    Map<String, dynamic>? deliveryHandling,
+  ) {
+    double pickupFee = 0.0;
+    double deliveryFee = 0.0;
+    
+    // Frais pickup
+    if (pickupHandling != null) {
+      String assistanceLevel = pickupHandling['assistanceLevel']?.toString() ?? 'door';
+      pickupFee = _handlingFees[assistanceLevel] ?? 0.0;
+    }
+    
+    // Frais delivery
+    if (deliveryHandling != null) {
+      String assistanceLevel = deliveryHandling['assistanceLevel']?.toString() ?? 'door';
+      deliveryFee = _handlingFees[assistanceLevel] ?? 0.0;
+    }
+    
+    return pickupFee + deliveryFee;
+  }
+
+  /// 🛡️ CALCUL DES FRAIS D'ASSURANCE (forfaitaire)
+  static double calculateInsuranceFee(String insuranceLevel, double? declaredValue) {
+    return _insuranceFees[insuranceLevel] ?? 0.0;
+  }*/
+
+  /// ⚡ CALCUL RAPIDE (pour tests)
+  static double calculateQuickEstimate(double distanceKm, double weightKg) {
+    return calculateEstimatedPrice(
+      distanceKm: distanceKm,
+      weightKg: weightKg,
+      deliverySpeed: 'standard',
+      insuranceLevel: 'none',
+    );
+  }
+
+  /// 📊 DÉTAIL COMPLET DU CALCUL POUR DEBUG/AFFICHAGE
+  static PriceBreakdown calculatePriceBreakdown({
+    required double distanceKm,
+    required double weightKg,
+    required String deliverySpeed,
+    double? declaredValue,
+    required String insuranceLevel,
+    String? size,
+    Map<String, dynamic>? dimensions,
+    int quantity = 1,
+    Map<String, dynamic>? pickupHandling,
+    Map<String, dynamic>? deliveryHandling,
+    double? promoDiscount,
+    double? totalHandlingFees,
+  }) {
+    
+    try {
+      // Calculs étape par étape (mêmes que calculateEstimatedPrice)
+      double basePrice = distanceKm * _basePricePerKm;
+      double weightPrice = _calculateWeightPrice(weightKg);
+      double volumeSurcharge = _calculateVolumeSurcharge(size, dimensions);
+      
+      double subtotalBase = basePrice + weightPrice + volumeSurcharge;
+      double speedMultiplier = _speedMultipliers[deliverySpeed] ?? 1.0;
+      double adjustedPrice = subtotalBase * speedMultiplier * quantity;
+      
+      double handlingFees = totalHandlingFees ?? 0.0;
+      double insuranceFee = _insuranceFees[insuranceLevel] ?? 0.0;
+      
+      double subtotal = adjustedPrice + handlingFees + insuranceFee;
+      double discount = promoDiscount ?? 0.0;
+      subtotal = (subtotal - discount).clamp(0.0, double.infinity);
+      
+      double total = subtotal.clamp(_minimumPrice, _maximumPrice);
+      
+      return PriceBreakdown(
+        distanceKm: distanceKm,
+        weightKg: weightKg,
+        basePrice: basePrice,
+        weightPrice: weightPrice,
+        volumeSurcharge: volumeSurcharge,
+        speedMultiplier: speedMultiplier,
+        adjustedPrice: adjustedPrice,
+        handlingFees: handlingFees,
+        insuranceFee: insuranceFee,
+        promoDiscount: discount,
+        platformFee: 0.0, // Pas de frais de plateforme
+        subtotal: subtotal,
+        total: total,
+        minimumApplied: total == _minimumPrice,
+        maximumApplied: total == _maximumPrice,
+        quantity: quantity,
+      );
+    } catch (e) {
+      print("❌ Erreur calcul breakdown: $e");
+      return PriceBreakdown(
+        distanceKm: distanceKm,
+        weightKg: weightKg,
+        basePrice: _minimumPrice,
+        weightPrice: 0.0,
+        volumeSurcharge: 0.0,
+        speedMultiplier: 1.0,
+        adjustedPrice: _minimumPrice,
+        handlingFees: 0.0,
+        insuranceFee: 0.0,
+        promoDiscount: 0.0,
+        platformFee: 0.0,
+        subtotal: _minimumPrice,
+        total: _minimumPrice,
+        minimumApplied: true,
+        maximumApplied: false,
+        quantity: 1,
+      );
+    }
+  }
+
+  /// 📊 BREAKDOWN DEPUIS PARCELMODEL
+  static PriceBreakdown calculateBreakdownFromParcel(ParcelModel parcel) {
+    return calculatePriceBreakdown(
+      distanceKm: parcel.estimatedDistance ?? 0.0,
+      weightKg: parcel.weight,
+      deliverySpeed: parcel.delivery_speed,
+      declaredValue: parcel.declared_value,
+      insuranceLevel: parcel.insurance_level,
+      size: parcel.size,
+      dimensions: parcel.dimensions,
+      quantity: parcel.quantity,
+      pickupHandling: parcel.pickupHandling,
+      deliveryHandling: parcel.deliveryHandling,
+      promoDiscount: parcel.discount_amount,
+    );
+  }
+
+  /// 🔍 VALIDATION DE COHÉRENCE DU PRIX
+  static bool isPriceReasonable(double price, ParcelModel parcel) {
+    if (price < _minimumPrice || price > _maximumPrice) return false;
+    
+    if (parcel.estimatedDistance != null && parcel.estimatedDistance! > 0) {
+      double pricePerKm = price / parcel.estimatedDistance!;
+      if (pricePerKm < 0.5 || pricePerKm > 50.0) return false;
+    }
+    
+    return true;
   }
 }
- 
+
+/// 📊 CLASSE POUR LE DÉTAIL DU CALCUL
+class PriceBreakdown {
+  final double distanceKm;
+  final double weightKg;
+  final double basePrice;
+  final double weightPrice;
+  final double volumeSurcharge;
+  final double speedMultiplier;
+  final double adjustedPrice;
+  final double handlingFees;
+  final double insuranceFee;
+  final double promoDiscount;
+  final double platformFee;
+  final double subtotal;
+  final double total;
+  final bool minimumApplied;
+  final bool maximumApplied;
+  final int quantity;
+  
+  PriceBreakdown({
+    required this.distanceKm,
+    required this.weightKg,
+    required this.basePrice,
+    required this.weightPrice,
+    required this.volumeSurcharge,
+    required this.speedMultiplier,
+    required this.adjustedPrice,
+    required this.handlingFees,
+    required this.insuranceFee,
+    required this.promoDiscount,
+    required this.platformFee,
+    required this.subtotal,
+    required this.total,
+    required this.minimumApplied,
+    required this.maximumApplied,
+    required this.quantity,
+  });
+
+  /// 📋 CONVERSION EN MAP POUR DEBUG
+  Map<String, dynamic> toDetailedMap() {
+    return {
+      'distance_km': distanceKm,
+      'weight_kg': weightKg,
+      'base_price': basePrice,
+      'weight_price': weightPrice,
+      'volume_surcharge': volumeSurcharge,
+      'speed_multiplier': speedMultiplier,
+      'adjusted_price': adjustedPrice,
+      'handling_fees': handlingFees,
+      'insurance_fee': insuranceFee,
+      'promo_discount': promoDiscount,
+      'platform_fee': platformFee,
+      'subtotal': subtotal,
+      'total': total,
+      'minimum_applied': minimumApplied,
+      'maximum_applied': maximumApplied,
+      'quantity': quantity,
+    };
+  }
+
+  /// 📝 AFFICHAGE LISIBLE POUR DEBUG
+  @override
+  String toString() {
+    return '''
+PriceBreakdown:
+  Distance: ${distanceKm}km
+  Poids: ${weightKg}kg
+  Prix base: ${basePrice.toStringAsFixed(2)} CAD
+  Prix poids: ${weightPrice.toStringAsFixed(2)} CAD
+  Manutention: ${handlingFees.toStringAsFixed(2)} CAD
+  Assurance: ${insuranceFee.toStringAsFixed(2)} CAD
+  Plateforme: ${platformFee.toStringAsFixed(2)} CAD
+  TOTAL: ${total.toStringAsFixed(2)} CAD
+    ''';
+  }
+}
+
+/*
+class PriceCalculator {
+  // Tarifs de base (à terme, ces valeurs viendront de Firestore config)
+  static const double _basePricePerKm = 0.15; // CAD par km
+  static const double _weightMultiplier = 0.30; // CAD par kg supplémentaire au-delà de 5kg
+  static const double _platformFeePercent = 0.05; // 5% de frais de plateforme
+  static const double _minimumPrice = 40; // Prix minimum
+  
+  // Multiplicateurs selon vitesse de livraison
+  static const Map<String, double> _speedMultipliers = {
+    'economy': 0.8,    // -20%
+    'standard': 1.0,   // Prix normal
+    'urgent': 1.5,    // +50%
+  };
+  
+  // Tarifs d'assurance (% de la valeur déclarée)
+  static const Map<String, double> _insuranceRates = {
+    'none': 0.0,
+    'basic': 0.01,     // 1%
+    'premium': 0.02,   // 2%
+  };
+  
+  /// Calcule le prix estimé d'une livraison
+  static double calculateEstimatedPrice({
+    required double distanceKm,
+    required double weightKg,
+    required String deliverySpeed,
+    double? declaredValue,
+    required String insuranceLevel,
+  }) {
+    // 1. Prix de base selon distance
+    double basePrice = distanceKm * _basePricePerKm;
+    
+    // 2. Ajout selon poids (si > 5kg)
+    if (weightKg > 5.0) {
+      double extraWeight = weightKg - 5.0;
+      basePrice += extraWeight * _weightMultiplier;
+    }
+    
+    // 3. Multiplicateur selon vitesse
+    double speedMultiplier = _speedMultipliers[deliverySpeed] ?? 1.0;
+    basePrice *= speedMultiplier;
+    
+    // 4. Calcul de l'assurance
+    double insuranceFee = 0.0;
+    if (insuranceLevel != 'none' && declaredValue != null && declaredValue > 0) {
+      double rate = _insuranceRates[insuranceLevel] ?? 0.0;
+      insuranceFee = declaredValue * rate;
+    }
+    
+    // 5. Prix total avant frais de plateforme
+    double subtotal = basePrice + insuranceFee;
+    
+    // 6. Frais de plateforme
+    double platformFee = subtotal * _platformFeePercent;
+    
+    // 7. Prix final
+    double finalPrice = subtotal + platformFee;
+    
+    // 8. Appliquer le prix minimum
+    return finalPrice < _minimumPrice ? _minimumPrice : finalPrice;
+  }
+  
+  /// Calcule les frais d'assurance séparément
+  static double calculateInsuranceFee(String insuranceLevel, double? declaredValue) {
+    if (insuranceLevel == 'none' || declaredValue == null || declaredValue <= 0) {
+      return 0.0;
+    }
+    
+    double rate = _insuranceRates[insuranceLevel] ?? 0.0;
+    return declaredValue * rate;
+  }
+  
+  /// Calcule les frais de plateforme
+  static double calculatePlatformFee(double basePrice) {
+    return basePrice * _platformFeePercent;
+  }
+  
+  /// Calcule une estimation de prix rapide (sans assurance)
+  static double calculateQuickEstimate(double distanceKm, double weightKg) {
+    return calculateEstimatedPrice(
+      distanceKm: distanceKm,
+      weightKg: weightKg,
+      deliverySpeed: 'standard',
+      insuranceLevel: 'none',
+    );
+  }
+  
+  /// Retourne le détail du calcul pour affichage
+  static PriceBreakdown calculatePriceBreakdown({
+    required double distanceKm,
+    required double weightKg,
+    required String deliverySpeed,
+    double? declaredValue,
+    required String insuranceLevel,
+  }) {
+    // Calculs étape par étape
+    double basePrice = distanceKm * _basePricePerKm;
+    
+    double weightSurcharge = 0.0;
+    if (weightKg > 5.0) {
+      weightSurcharge = (weightKg - 5.0) * _weightMultiplier;
+      basePrice += weightSurcharge;
+    }
+    
+    double speedMultiplier = _speedMultipliers[deliverySpeed] ?? 1.0;
+    double adjustedPrice = basePrice * speedMultiplier;
+    
+    double insuranceFee = calculateInsuranceFee(insuranceLevel, declaredValue);
+    double subtotal = adjustedPrice + insuranceFee;
+    double platformFee = calculatePlatformFee(subtotal);
+    double total = subtotal + platformFee;
+    
+    if (total < _minimumPrice) {
+      total = _minimumPrice;
+    }
+    
+    return PriceBreakdown(
+      distanceKm: distanceKm,
+      weightKg: weightKg,
+      basePrice: distanceKm * _basePricePerKm,
+      weightSurcharge: weightSurcharge,
+      speedMultiplier: speedMultiplier,
+      adjustedPrice: adjustedPrice,
+      insuranceFee: insuranceFee,
+      platformFee: platformFee,
+      subtotal: subtotal,
+      total: total,
+      minimumApplied: total == _minimumPrice,
+    );
+  }
+}
+
+/// Classe pour le détail du calcul de prix
+class PriceBreakdown {
+  final double distanceKm;
+  final double weightKg;
+  final double basePrice;
+  final double weightSurcharge;
+  final double speedMultiplier;
+  final double adjustedPrice;
+  final double insuranceFee;
+  final double platformFee;
+  final double subtotal;
+  final double total;
+  final bool minimumApplied;
+  
+  PriceBreakdown({
+    required this.distanceKm,
+    required this.weightKg,
+    required this.basePrice,
+    required this.weightSurcharge,
+    required this.speedMultiplier,
+    required this.adjustedPrice,
+    required this.insuranceFee,
+    required this.platformFee,
+    required this.subtotal,
+    required this.total,
+    required this.minimumApplied,
+  });
+}*/

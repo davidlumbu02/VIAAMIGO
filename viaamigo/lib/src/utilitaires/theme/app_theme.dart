@@ -129,6 +129,8 @@ abstract final class AppTheme {
             secondaryLightRef: Color(0xFF94A3B8),
             tertiaryLightRef: Color(0xFF8B5CF6),
             appBarColor: Color(0xFFFAFAFA),
+            parcelColor: Color(0xFF10A37F),  // Vert IA – publication colis
+    driverColor: Color(0xFF7C3AED),  // Violet modéré – publication trajet
           ),
         ],
       );
@@ -174,6 +176,8 @@ abstract final class AppTheme {
             secondaryLightRef: Color(0xFF353541),
             tertiaryLightRef: Color(0xFFB983FF),
             appBarColor: Color(0xFF101014),
+            parcelColor: Color(0xFF4A90E2),  // Bleu IA – colis
+    driverColor: Color(0xFF8C5EFF),  // Violet néon – trajet
           ),
         ],
       );

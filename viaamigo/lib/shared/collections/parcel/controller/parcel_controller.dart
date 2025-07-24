@@ -1,3 +1,6 @@
+// ignore_for_file: constant_identifier_names
+
+import 'package:flutter/material.dart';
 import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,9 +10,13 @@ import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/collections/parcel/services/parcel_service.dart';
 
 
+
 class ParcelsController extends GetxController {
   final ParcelsService _parcelsService = ParcelsService();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  // ✅ AJOUT: Constante pour la limite de photos
+  static const int MAX_PHOTOS = 4;
+  
   
   // Variables observables
   Rx<ParcelModel?> currentParcel = Rx<ParcelModel?>(null);
@@ -19,14 +26,34 @@ class ParcelsController extends GetxController {
   RxInt currentStep = 0.obs;
   RxBool autoSave = true.obs; // Option de sauvegarde automatique
   
+  
   // État du formulaire
   final RxBool titleValid = false.obs;
   final RxBool descriptionValid = false.obs;
+  final RxBool dimensionValid = false.obs;
+  final RxBool sizeValid = false.obs;
+  final RxBool categoryValid = false.obs;
+  final RxBool recipientNameValid = false.obs;
+  final RxBool recipientPhoneValid = false.obs;
+  final RxBool pickupDescriptionValid = false.obs;
+  final RxBool deliveryDescriptionValid = false.obs;
+  final RxBool senderNameValid = false.obs;
   final RxBool weightValid = false.obs;
   final RxBool originValid = false.obs;
   final RxBool destinationValid = false.obs;
   final RxBool recipientValid = false.obs;
-  
+
+    // ✅ NOUVEAUX OBSERVABLES D'ASSURANCE
+  final RxBool isInsured = false.obs;
+  final RxString insuranceLevel = 'none'.obs;
+  final RxDouble declaredValue = 0.0.obs;
+  final RxDouble insuranceFee = 0.0.obs;
+  final RxDouble platformFee = 0.0.obs;
+  final RxDouble finalPrice = 0.0.obs;
+   final RxString paymentStatus = 'unpaid'.obs;
+final RxString paymentId = ''.obs;
+final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
+
   // AMÉLIORATION: Observables pour la liste des photos
   RxList<String> photosList = <String>[].obs;
   RxString primaryPhoto = ''.obs;
@@ -48,13 +75,16 @@ class ParcelsController extends GetxController {
       // Récupérer les informations de l'utilisateur actuel
       final user = _auth.currentUser;
       if (user == null) {
-        throw Exception('Utilisateur non connecté');
+        throw Exception('User not logged in.');
       }
       
       if (existingParcelId != null) {
         // Charger un parcel existant
         currentParcel.value = await _parcelsService.getParcelById(existingParcelId);
-        
+        paymentStatus.value = currentParcel.value!.paymentStatus;
+        paymentId.value = currentParcel.value!.paymentId ?? '';
+        paidAt.value = currentParcel.value!.paidAt;
+
         // AMÉLIORATION: Synchroniser les observables avec le modèle
         photosList.value = List<String>.from(currentParcel.value!.photos);
         primaryPhoto.value = currentParcel.value!.primaryPhotoUrl ?? '';
@@ -64,11 +94,18 @@ class ParcelsController extends GetxController {
         final now = DateTime.now();
         final emptyParcel = ParcelModel(
           senderId: user.uid,
-          senderName: user.displayName ?? 'Utilisateur',
+          paymentId: '',
+          paymentStatus: 'unpaid',
+          paidAt: null,
+          senderName: user.displayName ?? 'User',
           title: '',
           description: '',
+          pickupDescription: '',
+          deliveryDescription: '',
+          quantity: 1,
+          senderPhone: user.phoneNumber ?? '',
           weight: 0.0,
-          size: 'medium',
+          size: '', // Taille par défaut
           dimensions: {
             'length': 0,
             'width': 0,
@@ -82,12 +119,12 @@ class ParcelsController extends GetxController {
           createdAt: now,
           last_edited: now,
           pickup_window: {
-            'start_time': Timestamp.fromDate(now.add(Duration(days: 1))),
-            'end_time': Timestamp.fromDate(now.add(Duration(days: 1, hours: 2))),
+            'start_time': Timestamp.fromDate(now.add(Duration(days: 0))),
+            'end_time': Timestamp.fromDate(now.add(Duration(days: 7, hours: 2))),
           },
           delivery_window: {
-            'start_time': Timestamp.fromDate(now.add(Duration(days: 2))),
-            'end_time': Timestamp.fromDate(now.add(Duration(days: 2, hours: 4))),
+            'start_time': Timestamp.fromDate(now.add(Duration(days: 0))),
+            'end_time': Timestamp.fromDate(now.add(Duration(days: 14, hours: 4))),
           },
           draft: true,
           completion_percentage: 0,
@@ -95,8 +132,8 @@ class ParcelsController extends GetxController {
           status: 'draft',
           isInsured: false,
           insurance_level: 'none',
-          flexible_days: false,
-          advanced_pickup_allowed: false,
+          insurance_fee: 0.0,        // ✅ NOUVEAU
+          platform_fee: 0.0,
           delivery_speed: 'standard',
           photos: [],
           geoIndexReady: false
@@ -126,7 +163,7 @@ class ParcelsController extends GetxController {
     if (currentParcel.value == null) return;
     
     titleValid.value = currentParcel.value!.title.isNotEmpty;
-    descriptionValid.value = currentParcel.value!.description.isNotEmpty;
+   // descriptionValid.value = currentParcel.value!.description.isNotEmpty;
     weightValid.value = currentParcel.value!.weight > 0;
     originValid.value = currentParcel.value!.originAddress.isNotEmpty;
     destinationValid.value = currentParcel.value!.destinationAddress.isNotEmpty;
@@ -134,9 +171,19 @@ class ParcelsController extends GetxController {
         currentParcel.value!.recipientName.isNotEmpty && 
         currentParcel.value!.recipientPhone.isNotEmpty;
         
-    // AMÉLIORATION: Mettre à jour la liste des erreurs de validation
-    currentParcel.value!.validate();
-    validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
+// ✅ NOUVEAU : Synchroniser les observables d'assurance
+  isInsured.value = currentParcel.value!.isInsured;
+  insuranceLevel.value = currentParcel.value!.insurance_level;
+  declaredValue.value = currentParcel.value!.declared_value ?? 0.0;
+  insuranceFee.value = currentParcel.value!.insurance_fee ?? 0.0;
+  platformFee.value = currentParcel.value!.platform_fee ?? 0.0;
+  
+  // Calculer le prix final
+  finalPrice.value = currentParcel.value!.calculateTotalPrice();
+      
+  // AMÉLIORATION: Mettre à jour la liste des erreurs de validation
+  currentParcel.value!.validate();
+  validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
   }
   
   // Sauvegarder le colis (en mode brouillon)
@@ -153,6 +200,9 @@ class ParcelsController extends GetxController {
       // Calculer le pourcentage de complétion
       currentParcel.value!.completion_percentage = 
           currentParcel.value!.calculateCompletionPercentage();
+      
+       // Calculer les frais de manutention
+    computeTotalHandlingFee();
       
       await _parcelsService.updateParcel(currentParcel.value!);
       validateFields(); // AMÉLIORATION: Revalider après sauvegarde
@@ -205,8 +255,14 @@ class ParcelsController extends GetxController {
         currentParcel.value = currentParcel.value!.copyWith(description: value);
         descriptionValid.value = value.toString().isNotEmpty;
         break;
+      case 'pickupDescription':
+        currentParcel.value = currentParcel.value!.copyWith(pickupDescription: value);
+        break;
+      case 'deliveryDescription':
+        currentParcel.value = currentParcel.value!.copyWith(deliveryDescription: value);
+        break;
       case 'weight':
-        double weightValue = double.parse(value.toString());
+        /*double weightValue = double.parse(value.toString());
         currentParcel.value = currentParcel.value!.copyWith(weight: weightValue);
         weightValid.value = weightValue > 0;
         
@@ -225,10 +281,30 @@ class ParcelsController extends GetxController {
           if (currentParcel.value!.price == null) {
             currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
           }
-        }
+        }*/
+          double weightValue = double.parse(value.toString());
+          currentParcel.value = currentParcel.value!.copyWith(weight: weightValue);
+          weightValid.value = weightValue > 0;
+          
+          // Recalculer le prix estimé avec la nouvelle méthode
+          if (weightValid.value && currentParcel.value!.estimatedDistance != null) {
+            double estimatedPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
+            currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
+            
+            if (currentParcel.value!.price == null) {
+              currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
+            }
+          }
         break;
       case 'size':
-        currentParcel.value = currentParcel.value!.copyWith(size: value);
+        //currentParcel.value = currentParcel.value!.copyWith(size: value);
+        // ✅ NOUVEAU : Mapping automatique taille → dimensions
+       // Map<String, dynamic> autoDimensions = _getSizeDimensions(value);
+        
+        currentParcel.value = currentParcel.value!.copyWith(
+          size: value,
+          //dimensions: autoDimensions  // ✅ Définit automatiquement les dimensions
+        );
         break;
       case 'category':
         currentParcel.value = currentParcel.value!.copyWith(category: value);
@@ -242,7 +318,7 @@ class ParcelsController extends GetxController {
         validateRecipientFields();
         break;
       case 'delivery_speed':
-        currentParcel.value = currentParcel.value!.copyWith(delivery_speed: value);
+        /*currentParcel.value = currentParcel.value!.copyWith(delivery_speed: value);
         
         // Recalculer le prix si nécessaire
         if (currentParcel.value!.estimatedDistance != null) {
@@ -254,33 +330,168 @@ class ParcelsController extends GetxController {
             insuranceLevel: currentParcel.value!.insurance_level,
           );
           currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
+        }*/
+         currentParcel.value = currentParcel.value!.copyWith(delivery_speed: value);
+  
+        // Recalculer le prix si nécessaire
+        if (currentParcel.value!.estimatedDistance != null) {
+          double estimatedPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
+          currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
         }
-        break;
-      case 'flexible_days':
-        currentParcel.value = currentParcel.value!.copyWith(flexible_days: value);
-        break;
-      case 'advanced_pickup_allowed':
-        currentParcel.value = currentParcel.value!.copyWith(advanced_pickup_allowed: value);
         break;
       case 'insurance_level':
         currentParcel.value = currentParcel.value!.copyWith(
           insurance_level: value,
           isInsured: value != 'none'
         );
+        if (currentParcel.value!.isInsured) {
+        double insuranceFee = currentParcel.value!.calculateInsurancePremium();
+        currentParcel.value = currentParcel.value!.copyWith(insurance_fee: insuranceFee);
+      } else {
+        currentParcel.value = currentParcel.value!.copyWith(insurance_fee: 0.0);
+      }
         break;
       case 'declared_value':
         currentParcel.value = currentParcel.value!.copyWith(declared_value: value);
+        // ✅ NOUVEAU : Mise à jour automatique du niveau d'assurance
+      if (currentParcel.value!.isInsured) {
+        currentParcel.value!.updateInsuranceLevel();
+        // Forcer la mise à jour du modèle
+        currentParcel.value = currentParcel.value!.copyWith(
+          insurance_level: currentParcel.value!.insurance_level,
+          insurance_fee: currentParcel.value!.insurance_fee
+        );
+      }
         break;
+          // ✅ NOUVEAUX CHAMPS D'ASSURANCE :
+    case 'isInsured':
+      currentParcel.value = currentParcel.value!.copyWith(isInsured: value);
+      if (!value) {
+        // Désactiver l'assurance
+        currentParcel.value = currentParcel.value!.copyWith(
+          insurance_level: 'none',
+          insurance_fee: 0.0,
+          declared_value: null
+        );
+      }
+      break;  
       case 'dimensions':
         currentParcel.value = currentParcel.value!.copyWith(dimensions: value);
         break;
+      case 'pickupHandling':
+        currentParcel.value = currentParcel.value!.copyWith(pickupHandling: value);
+        // Recalculer les frais totaux
+        computeTotalHandlingFee();
+        break;
+      case 'deliveryHandling':
+        currentParcel.value = currentParcel.value!.copyWith(deliveryHandling: value);
+        // Recalculer les frais totaux
+        computeTotalHandlingFee();
+        break;
+      case 'insurance_fee':
+  currentParcel.value = currentParcel.value!.copyWith(insurance_fee: value);
+  break;
+case 'platform_fee':
+  currentParcel.value = currentParcel.value!.copyWith(platform_fee: value);
+  break;
+case 'price':
+  currentParcel.value = currentParcel.value!.copyWith(price: value);
+  break;
+case 'initialPrice':
+  currentParcel.value = currentParcel.value!.copyWith(initialPrice: value);
+  break;
+case 'discount_amount':
+  currentParcel.value = currentParcel.value!.copyWith(discount_amount: value);
+  break;
+case 'promo_code_applied':
+  currentParcel.value = currentParcel.value!.copyWith(promo_code_applied: value);
+  break;
+  case 'paymentStatus':
+  currentParcel.value = currentParcel.value!.copyWith(paymentStatus: value);
+  paymentStatus.value = value;
+  break;
+
+case 'paymentId':
+  currentParcel.value = currentParcel.value!.copyWith(paymentId: value);
+  paymentId.value = value;
+  break;
+
+case 'paidAt':
+  currentParcel.value = currentParcel.value!.copyWith(paidAt: value);
+  paidAt.value = value;
+  break;
+
     }
-    
+    syncObservables();
     // Sauvegarder automatiquement après modifications si activé
     if (autoSave.value) {
       await saveParcel();
     }
   }
+   /// Recalcule le prix complet avec tous les paramètres
+  void recalculatePrice() {
+    if (currentParcel.value?.estimatedDistance == null) return;
+    
+    double newPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
+    currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: newPrice);
+    
+    // Debug détaillé
+    final breakdown = PriceCalculator.calculateBreakdownFromParcel(currentParcel.value!);
+    print("💰 NOUVEAU PRIX: ${breakdown.total.toStringAsFixed(2)} CAD");
+    print(breakdown.toString());
+  }
+
+  /// Obtient le détail complet du calcul
+  PriceBreakdown getPriceBreakdown() {
+    if (currentParcel.value == null) {
+      // Retourner un breakdown vide si pas de parcel
+      return PriceBreakdown(
+        distanceKm: 0.0,
+        weightKg: 0.0,
+        basePrice: 0.0,
+        weightPrice: 0.0,
+        volumeSurcharge: 0.0,
+        speedMultiplier: 1.0,
+        adjustedPrice: 0.0,
+        handlingFees: 0.0,
+        insuranceFee: 0.0,
+        promoDiscount: 0.0,
+        platformFee: 0.0,
+        subtotal: 0.0,
+        total: 0.0,
+        minimumApplied: false,
+        maximumApplied: false,
+        quantity: 1,
+      );
+    }
+    return PriceCalculator.calculateBreakdownFromParcel(currentParcel.value!);
+  }
+  /// Met à jour une dimension spécifique (longueur, largeur, hauteur)
+Future<void> updateDimension(String key, String value) async {
+  if (currentParcel.value == null) return;
+
+  final dims = Map<String, dynamic>.from(currentParcel.value!.dimensions);
+  dims[key] = double.tryParse(value) ?? 0;
+
+  await updateField('dimensions', dims);
+}
+/*Map<String, dynamic> _getSizeDimensions(String size) {
+  switch (size) {
+    case 'SIZE S':
+      return ParcelDimensions.small().toMap();
+    case 'SIZE M':
+      return ParcelDimensions.medium().toMap();
+    case 'SIZE L':
+      return ParcelDimensions.large().toMap();
+    case 'SIZE XL':
+      return ParcelDimensions.extraLarge().toMap();
+    case 'SIZE XXL':
+      return ParcelDimensions.doubleExtraLarge().toMap();
+    default:
+      return {'length': 0, 'width': 0, 'height': 0};
+  }
+}*/
+
   
   // Valider les champs du destinataire
   void validateRecipientFields() {
@@ -339,7 +550,28 @@ class ParcelsController extends GetxController {
       await saveParcel();
     }
   }
-  
+  Future<void>calculateEstimatePrice() async {
+    if (currentParcel.value == null) return;
+    
+    try {
+      // Recalculer le prix estimé
+      double estimatedPrice = PriceCalculator.calculateFromParcel(currentParcel.value!);
+      
+      // Mettre à jour le modèle
+      currentParcel.value = currentParcel.value!.copyWith(estimatedPrice: estimatedPrice);
+      
+      // Si c'est la première fois, initialiser le prix proposé aussi
+      if (currentParcel.value!.price == null) {
+        currentParcel.value = currentParcel.value!.copyWith(price: estimatedPrice);
+      }
+      
+      if (autoSave.value) {
+        await saveParcel();
+      }
+    } catch (e) {
+      errorMessage.value = 'Erreur lors du calcul du prix: ${e.toString()}';
+    }
+  }
   // Calculer la distance et le prix estimé
   Future<void> calculateDistanceAndPrice() async {
     if (currentParcel.value?.origin == null || currentParcel.value?.destination == null) return;
@@ -355,12 +587,19 @@ class ParcelsController extends GetxController {
       currentParcel.value = currentParcel.value!.copyWith(estimatedDistance: distance);
       
       // Calculer le prix estimé avec le service dédié
-      double estimatedPrice = PriceCalculator.calculateEstimatedPrice(
+      double estimatedPrice = PriceCalculator.calculateFromParcel(
+        currentParcel.value!,
+     /* double estimatedPrice = PriceCalculator.calculateEstimatedPrice(
         distanceKm: distance,
         weightKg: currentParcel.value!.weight,
         deliverySpeed: currentParcel.value!.delivery_speed,
         declaredValue: currentParcel.value!.declared_value,
         insuranceLevel: currentParcel.value!.insurance_level,
+        dimensions: currentParcel.value!.dimensions,
+        size: currentParcel.value!.size,
+        quantity: currentParcel.value!.quantity,*/
+
+
       );
       
       // Mettre à jour les prix
@@ -376,10 +615,25 @@ class ParcelsController extends GetxController {
       errorMessage.value = 'Erreur lors du calcul de la distance: ${e.toString()}';
     }
   }
+  //handling fees
+  void computeTotalHandlingFee() {
+  final pickupFee = currentParcel.value?.pickupHandling?['estimatedFee'] ?? 0.0;
+  final deliveryFee = currentParcel.value?.deliveryHandling?['estimatedFee'] ?? 0.0;
+  final total = (pickupFee as num).toDouble() + (deliveryFee as num).toDouble();
+
+  currentParcel.value = currentParcel.value!.copyWith(totalHandlingFee: total);
+}
+
   
   // AMÉLIORATION: Ajouter une photo
   Future<void> addPhoto(String photoUrl) async {
     if (currentParcel.value == null) return;
+    // ✅ NOUVEAU: Vérifier la limite avant d'ajouter
+  final currentPhotos = currentParcel.value!.photos;
+  if (currentPhotos.length >= MAX_PHOTOS) {
+    errorMessage.value = 'Limite de $MAX_PHOTOS photos atteinte';
+    throw Exception('Limite de $MAX_PHOTOS photos atteinte');
+  }
     
     // Copier la liste existante et ajouter la nouvelle photo
     List<String> updatedPhotos = List<String>.from(currentParcel.value!.photos);
@@ -401,6 +655,20 @@ class ParcelsController extends GetxController {
       await saveParcel();
     }
   }
+  // ✅ NOUVEAU: Vérifier si on peut ajouter plus de photos
+bool canAddMorePhotos() {
+  if (currentParcel.value == null) return false;
+  return currentParcel.value!.photos.length < MAX_PHOTOS;
+}
+
+// ✅ NOUVEAU: Obtenir le nombre de photos restantes
+int getRemainingPhotoSlots() {
+  if (currentParcel.value == null) return MAX_PHOTOS;
+  return MAX_PHOTOS - currentParcel.value!.photos.length;
+}
+
+// ✅ NOUVEAU: Getter pour la limite de photos
+int get maxPhotos => MAX_PHOTOS;
   
   // AMÉLIORATION: Supprimer une photo
   Future<void> removePhoto(String photoUrl) async {
@@ -423,6 +691,10 @@ class ParcelsController extends GetxController {
     // Mettre à jour l'observable
     photosList.value = updatedPhotos;
     
+      // ✅ NOUVEAU: Reset l'erreur si on est sous la limite
+  if (updatedPhotos.length < MAX_PHOTOS && errorMessage.value.contains('Limite de $MAX_PHOTOS photos')) {
+    errorMessage.value = '';
+  }
     if (autoSave.value) {
       await saveParcel();
     }
@@ -477,6 +749,8 @@ class ParcelsController extends GetxController {
   
   // Avancer à l'étape suivante du formulaire
   Future<void> nextStep() async {
+    debugPrint('Étape actuelle : ${currentStep.value}');
+
     currentStep.value++;
     
     // Mettre à jour l'étape dans le modèle
@@ -491,6 +765,7 @@ class ParcelsController extends GetxController {
   
   // Revenir à l'étape précédente
   Future<void> previousStep() async {
+
     if (currentStep.value > 0) {
       currentStep.value--;
       
@@ -557,4 +832,108 @@ class ParcelsController extends GetxController {
     
     return currentParcel.value!.toDisplayCard();
   }
+  // ✅ NOUVELLES MÉTHODES D'ASSURANCE
+
+/// Sélectionne automatiquement la tranche d'assurance appropriée
+/// Sélectionne automatiquement la tranche d'assurance appropriée
+Future<void> updateInsuranceForDeclaredValue(double declaredValue) async {
+  if (currentParcel.value == null) return;
+  
+  // Utiliser la méthode du modèle pour recommander le niveau
+  String recommendedLevel = currentParcel.value!.getRecommendedInsuranceLevel(declaredValue);
+  
+  // Mettre à jour le niveau et les frais
+  currentParcel.value = currentParcel.value!.copyWith(
+    declared_value: declaredValue,
+    insurance_level: recommendedLevel,
+  );
+  
+  // ✅ AMÉLIORATION : Recalculer les frais après la mise à jour
+  double newInsuranceFee = currentParcel.value!.calculateInsurancePremium();
+  currentParcel.value = currentParcel.value!.copyWith(insurance_fee: newInsuranceFee);
+  
+  // Synchroniser les observables
+  syncObservables();
+  
+  if (autoSave.value) {
+    await saveParcel();
+  }
+}
+void syncObservables() {
+  if (currentParcel.value == null) return;
+  
+  // Synchroniser les observables d'assurance
+  isInsured.value = currentParcel.value!.isInsured;
+  insuranceLevel.value = currentParcel.value!.insurance_level;
+  declaredValue.value = currentParcel.value!.declared_value ?? 0.0;
+  insuranceFee.value = currentParcel.value!.insurance_fee ?? 0.0;
+  platformFee.value = currentParcel.value!.platform_fee ?? 0.0;
+  finalPrice.value = currentParcel.value!.calculateTotalPrice();
+  
+  // Synchroniser les autres observables
+  photosList.value = List<String>.from(currentParcel.value!.photos);
+  primaryPhoto.value = currentParcel.value!.primaryPhotoUrl ?? '';
+  validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
+  paymentStatus.value = currentParcel.value!.paymentStatus;
+paymentId.value = currentParcel.value!.paymentId ?? '';
+paidAt.value = currentParcel.value!.paidAt;
+
+}
+bool get isPaid => paymentStatus.value == 'paid';
+bool get isEscrowed => paymentStatus.value == 'escrowed';
+bool get isUnpaid => paymentStatus.value == 'unpaid';
+bool get isRefunded => paymentStatus.value == 'refunded';
+
+
+/// Active/désactive l'assurance
+Future<void> toggleInsurance(bool isEnabled) async {
+  if (currentParcel.value == null) return;
+  
+  if (isEnabled) {
+    currentParcel.value = currentParcel.value!.copyWith(
+      isInsured: true,
+      insurance_level: 'tranche_150', // Niveau par défaut
+    );
+  } else {
+    currentParcel.value = currentParcel.value!.copyWith(
+      isInsured: false,
+      insurance_level: 'none',
+      insurance_fee: 0.0,
+      declared_value: null
+    );
+  }
+  
+  if (autoSave.value) {
+    await saveParcel();
+  }
+}
+
+/// Obtient les options d'assurance disponibles
+List<Map<String, dynamic>> getInsuranceOptions() {
+  return ParcelModel.getInsuranceOptions();
+}
+
+/// Obtient les détails d'une option d'assurance
+Map<String, dynamic>? getInsuranceOption(String key) {
+  return ParcelModel.getInsuranceOption(key);
+}
+
+/// Valide les informations d'assurance
+bool validateInsuranceInfo() {
+  if (currentParcel.value == null) return false;
+  return currentParcel.value!.validateInsurance();
+}
+/// Calcule le prix total incluant tous les frais
+double calculateTotalWithInsurance() {
+  if (currentParcel.value == null) return 0.0;
+  
+  return currentParcel.value!.calculateTotalPrice();
+}
+
+/// Obtient le détail des coûts avec assurance
+Map<String, double> getCostBreakdownWithInsurance() {
+  if (currentParcel.value == null) return {};
+  
+  return currentParcel.value!.getCostBreakdown();
+}
 }
