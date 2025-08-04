@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
+//import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
 import 'package:viaamigo/shared/models/app_route.dart';
 
 // Import des pages principales
@@ -269,8 +269,8 @@ class NavigationController extends GetxController {
         name: 'parcel-wizard', 
         pageBuilder: () {
           // Initialisation du contrôleur de colis et de la page
-          final controller = Get.put(ParcelsController());
-          controller.initParcel();
+         // final controller = Get.put(ParcelsController());
+         // controller.initParcel();
           return ParcelWizardPage();
         },
         showBottomBar: true, // Pas de bottom bar pour cette page

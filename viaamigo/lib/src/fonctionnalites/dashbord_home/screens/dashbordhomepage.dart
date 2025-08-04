@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/services/auth_service.dart';
+import 'package:viaamigo/shared/utilis/cleanup_service.dart';
 import 'package:viaamigo/src/utilitaires/theme/ThemedScaffoldWrapper.dart';
 import 'package:viaamigo/src/utilitaires/theme/app_colors.dart';
 //import 'package:viaamigo/src/fonctionnalites/dashbord_home/screens/smart_content_card.dart';
@@ -78,6 +79,9 @@ class DashboardHomePage extends StatelessWidget {
                                   borderRadius: BorderRadius.circular(40),
                                   onTap: () {
                                     // 🔔 Action pour notifications
+                                    // CleanupService.cleanupEmptyDraftsSimple();
+                                      // CleanupService.cleanupAbandonedDraftsNoIndex();
+                                      CleanupService.deleteAllParcels();
                                   },
                                   child: CircleAvatar(
                                     radius: 20,

@@ -1,10 +1,14 @@
 // ignore_for_file: constant_identifier_names
 
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/collections/parcel/services/parcel_service.dart';
@@ -54,6 +58,14 @@ class ParcelsController extends GetxController {
 final RxString paymentId = ''.obs;
 final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
 
+  // ✅ AJOUTER SEULEMENT CES 4 NOUVELLES VARIABLES :
+  final RxBool isLocalMode = true.obs;        // Mode local par défaut
+  final RxString localDraftId = ''.obs;       // ID temporaire local
+  Timer? _localSaveTimer;                     // Timer pour auto-save local
+  static const String LOCAL_DRAFT_KEY = 'viaamigo_local_draft';
+
+  
+
   // AMÉLIORATION: Observables pour la liste des photos
   RxList<String> photosList = <String>[].obs;
   RxString primaryPhoto = ''.obs;
@@ -67,7 +79,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   bool get isDraft => currentParcel.value?.draft ?? true;
   
   // Initialiser un nouveau colis ou récupérer un brouillon existant
-  Future<void> initParcel({String? existingParcelId}) async {
+  /*Future<void> initParcel({String? existingParcelId}) async {
     isLoading.value = true;
     errorMessage.value = '';
     
@@ -96,6 +108,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
           senderId: user.uid,
           paymentId: '',
           paymentStatus: 'unpaid',
+          paymentMethod: 'pay_later', // 'pay_now' ou 'pay_later'
           paidAt: null,
           senderName: user.displayName ?? 'User',
           title: '',
@@ -157,7 +170,130 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
       isLoading.value = false;
     }
   }
-  
+  */
+    Future<void> initParcel({String? existingParcelId}) async {
+    isLoading.value = true;
+    errorMessage.value = '';
+    
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in.');
+      }
+      
+      if (existingParcelId != null) {
+        // ✅ LOGIQUE EXISTANTE inchangée : Charger un parcel Firestore
+        print('🔄 Chargement parcel existant: $existingParcelId');
+        isLocalMode.value = false;
+        currentParcel.value = await _parcelsService.getParcelById(existingParcelId);
+        autoSave.value = true;
+        
+        // Votre code existant pour synchroniser les observables...
+        paymentStatus.value = currentParcel.value!.paymentStatus;
+        paymentId.value = currentParcel.value!.paymentId ?? '';
+        paidAt.value = currentParcel.value!.paidAt;
+        photosList.value = List<String>.from(currentParcel.value!.photos);
+        primaryPhoto.value = currentParcel.value!.primaryPhotoUrl ?? '';
+        validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
+      } else {
+        // 🆕 NOUVEAU : Logique de brouillon local
+        await _initializeLocalDraft(user);
+      }
+      
+      currentStep.value = currentParcel.value!.navigation_step;
+      validateFields();
+      
+    } catch (e) {
+      errorMessage.value = 'Erreur: ${e.toString()}';
+      print('❌ Erreur initParcel: $e');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // ✅ AJOUTER cette nouvelle méthode :
+  Future<void> _initializeLocalDraft(User user) async {
+    // 1. Chercher un brouillon local existant
+    final existingDraft = await _loadLocalDraft();
+    
+    if (existingDraft != null && _isRecentDraft(existingDraft)) {
+      print('📂 Reprise brouillon local');
+      isLocalMode.value = true;
+      currentParcel.value = existingDraft;
+      currentStep.value = existingDraft.navigation_step;
+      localDraftId.value = existingDraft.id ?? _generateLocalId();
+      autoSave.value = false; // Pas d'auto-save Firestore
+      _startLocalAutoSave();
+    } else {
+      print('🆕 Création nouveau brouillon local');
+      await _createNewLocalDraft(user);
+    }
+  }
+
+  // ✅ AJOUTER cette nouvelle méthode :
+  Future<void> _createNewLocalDraft(User user) async {
+    isLocalMode.value = true;
+    localDraftId.value = _generateLocalId();
+    autoSave.value = false;
+    
+    // ✅ UTILISER VOTRE LOGIQUE EXISTANTE exactement comme avant :
+    final now = DateTime.now();
+    final emptyParcel = ParcelModel(
+      senderId: user.uid,
+      paymentId: '',
+      paymentStatus: 'unpaid',
+      paidAt: null,
+      senderName: user.displayName ?? 'User',
+      title: '',
+      description: '',
+      pickupDescription: '',
+      deliveryDescription: '',
+      quantity: 1,
+      senderPhone: user.phoneNumber ?? '',
+      weight: 0.0,
+      size: '',
+      dimensions: {
+        'length': 0,
+        'width': 0,
+        'height': 0,
+      },
+      category: 'normal',
+      originAddress: '',
+      destinationAddress: '',
+      recipientName: '',
+      recipientPhone: '',
+      createdAt: now,
+      last_edited: now,
+      pickup_window: {
+        'start_time': Timestamp.fromDate(now.add(Duration(days: 0))),
+        'end_time': Timestamp.fromDate(now.add(Duration(days: 7, hours: 2))),
+      },
+      delivery_window: {
+        'start_time': Timestamp.fromDate(now.add(Duration(days: 0))),
+        'end_time': Timestamp.fromDate(now.add(Duration(days: 14, hours: 4))),
+      },
+      draft: true,
+      completion_percentage: 0,
+      navigation_step: 0,
+      status: 'draft',
+      isInsured: false,
+      insurance_level: 'none',
+      insurance_fee: 0.0,
+      platform_fee: 0.0,
+      delivery_speed: 'standard',
+      photos: [],
+      geoIndexReady: false
+    );
+    
+    currentParcel.value = emptyParcel;
+    currentStep.value = 0;
+    
+    validateFields();
+    _startLocalAutoSave();
+    
+    // Sauvegarder immédiatement en local
+    await _saveLocalDraft();
+  }
   // Valider l'état des champs
   void validateFields() {
     if (currentParcel.value == null) return;
@@ -187,7 +323,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   }
   
   // Sauvegarder le colis (en mode brouillon)
-  Future<void> saveParcel() async {
+  /*Future<void> saveParcel() async {
     if (currentParcel.value == null) return;
     
     isSaving.value = true;
@@ -211,10 +347,73 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
     } finally {
       isSaving.value = false;
     }
+  }*/
+    // ✅ MODIFIER votre méthode saveParcel existante - AJOUTER AU DÉBUT :
+  Future<void> saveParcel() async {
+    if (currentParcel.value == null) return;
+    
+    // ✅ AJOUTER CETTE CONDITION AU DÉBUT :
+    if (isLocalMode.value) {
+      await _saveLocalDraft();
+      return;
+    }
+    
+    // ✅ GARDER EXACTEMENT VOTRE LOGIQUE EXISTANTE :
+    isSaving.value = true;
+    
+    try {
+      currentParcel.value!.last_edited = DateTime.now();
+      currentParcel.value!.navigation_step = currentStep.value;
+      currentParcel.value!.completion_percentage = 
+          currentParcel.value!.calculateCompletionPercentage();
+      
+      computeTotalHandlingFee();
+      
+      await _parcelsService.updateParcel(currentParcel.value!);
+      validateFields();
+    } catch (e) {
+      errorMessage.value = 'Erreur lors de la sauvegarde: ${e.toString()}';
+    } finally {
+      isSaving.value = false;
+    }
   }
-  
   // Publier le colis (passer de brouillon à publié)
-  Future<bool> publishParcel() async {
+    Future<bool> publishParcel() async {
+    if (currentParcel.value == null) return false;
+    
+    // ✅ AJOUTER CETTE LOGIQUE AU DÉBUT :
+    if (isLocalMode.value) {
+      print('🔄 Transition vers Firestore pour publication...');
+      await _transitionToFirestore();
+    }
+    
+    // ✅ GARDER EXACTEMENT VOTRE LOGIQUE EXISTANTE :
+    if (!currentParcel.value!.validate()) {
+      validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
+      errorMessage.value = 'Erreurs de validation:\n${validationErrorsList.join('\n')}';
+      return false;
+    }
+    
+    isSaving.value = true;
+    
+    try {
+      await _parcelsService.publishParcel(currentParcel.value!);
+      
+      currentParcel.value!.draft = false;
+      currentParcel.value!.status = 'pending';
+      
+      // ✅ AJOUTER cette ligne :
+      await _clearLocalDraft();
+      
+      return true;
+    } catch (e) {
+      errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
+      return false;
+    } finally {
+      isSaving.value = false;
+    }
+  }
+  /*Future<bool> publishParcel() async {
     if (currentParcel.value == null) return false;
     
     // Valider le colis avant publication
@@ -241,7 +440,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
     } finally {
       isSaving.value = false;
     }
-  }
+  }*/
    Future<void> updateField(String fieldName, dynamic value) async {
     if (currentParcel.value == null) return;
     
@@ -376,6 +575,10 @@ case 'promo_code_applied':
   currentParcel.value = currentParcel.value!.copyWith(paymentStatus: value);
   paymentStatus.value = value;
   break;
+  case 'paymentMethod':
+  currentParcel.value = currentParcel.value!.copyWith(paymentMethod: value);
+  paymentStatus.value = value;
+  break;
 
 case 'paymentId':
   currentParcel.value = currentParcel.value!.copyWith(paymentId: value);
@@ -390,8 +593,21 @@ case 'paidAt':
     }
     syncObservables();
     // Sauvegarder automatiquement après modifications si activé
-    if (autoSave.value) {
+   /* if (autoSave.value) {
       await saveParcel();
+    }*/
+        // ✅ MODIFIER SEULEMENT CETTE PARTIE À LA FIN :
+    if (isLocalMode.value) {
+      // Mode local : vérifier si on doit passer en Firestore
+      if (_shouldTransitionToFirestore()) {
+        await _transitionToFirestore();
+      }
+      // Sinon, l'auto-save local se charge de tout automatiquement
+    } else {
+      // Mode Firestore : VOTRE LOGIQUE EXISTANTE
+      if (autoSave.value) {
+        await saveParcel();
+      }
     }
   }
    /// Recalcule le prix complet avec tous les paramètres
@@ -441,24 +657,7 @@ Future<void> updateDimension(String key, String value) async {
 
   await updateField('dimensions', dims);
 }
-/*Map<String, dynamic> _getSizeDimensions(String size) {
-  switch (size) {
-    case 'SIZE S':
-      return ParcelDimensions.small().toMap();
-    case 'SIZE M':
-      return ParcelDimensions.medium().toMap();
-    case 'SIZE L':
-      return ParcelDimensions.large().toMap();
-    case 'SIZE XL':
-      return ParcelDimensions.extraLarge().toMap();
-    case 'SIZE XXL':
-      return ParcelDimensions.doubleExtraLarge().toMap();
-    default:
-      return {'length': 0, 'width': 0, 'height': 0};
-  }
-}*/
 
-  
   // Valider les champs du destinataire
   void validateRecipientFields() {
     final parcel = currentParcel.value;
@@ -878,6 +1077,153 @@ bool validateInsuranceInfo() {
   if (currentParcel.value == null) return false;
   return currentParcel.value!.validateInsurance();
 }
+ // ✅ AJOUTER toutes ces nouvelles méthodes à la fin de votre classe :
+
+  String _generateLocalId() {
+    return 'local_${DateTime.now().millisecondsSinceEpoch}_${_auth.currentUser?.uid.substring(0, 8) ?? 'anon'}';
+  }
+
+  bool _isRecentDraft(ParcelModel draft) {
+    return DateTime.now().difference(draft.last_edited).inHours < 48;
+  }
+
+  bool _shouldTransitionToFirestore() {
+    if (!isLocalMode.value || currentParcel.value == null) return false;
+    
+    return currentParcel.value!.title.isNotEmpty &&
+           currentParcel.value!.weight > 0 &&
+           currentParcel.value!.originAddress.isNotEmpty &&
+           currentParcel.value!.destinationAddress.isNotEmpty;
+  }
+
+  Future<void> _transitionToFirestore() async {
+    if (!isLocalMode.value || currentParcel.value == null) return;
+    
+    try {
+      print('🔄 Création du parcel dans Firestore...');
+      final parcelId = await _parcelsService.createEmptyParcel(currentParcel.value!);
+      
+      currentParcel.value = currentParcel.value!.copyWith(id: parcelId);
+      
+      isLocalMode.value = false;
+      autoSave.value = true;
+      _stopLocalAutoSave();
+      
+      await saveParcel();
+      await _clearLocalDraft();
+      
+      print('✅ Transition réussie vers Firestore');
+    } catch (e) {
+      print('❌ Erreur transition: $e');
+    }
+  }
+
+  void _startLocalAutoSave() {
+    _localSaveTimer?.cancel();
+    _localSaveTimer = Timer.periodic(Duration(seconds: 5), (timer) {
+      if (isLocalMode.value && !isSaving.value) {
+        _saveLocalDraft();
+      }
+    });
+  }
+
+  void _stopLocalAutoSave() {
+    _localSaveTimer?.cancel();
+  }
+
+  Future<void> _saveLocalDraft() async {
+    if (currentParcel.value == null) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draftData = _parcelToLocalJson(currentParcel.value!);
+      draftData['currentStep'] = currentStep.value;
+      draftData['localDraftId'] = localDraftId.value;
+      
+      await prefs.setString(LOCAL_DRAFT_KEY, jsonEncode(draftData));
+      print('💾 Brouillon sauvé localement');
+    } catch (e) {
+      print('❌ Erreur sauvegarde locale: $e');
+    }
+  }
+
+  Future<ParcelModel?> _loadLocalDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final draftJson = prefs.getString(LOCAL_DRAFT_KEY);
+      
+      if (draftJson != null) {
+        final draftData = jsonDecode(draftJson);
+        currentStep.value = draftData['currentStep'] ?? 0;
+        localDraftId.value = draftData['localDraftId'] ?? _generateLocalId();
+        
+        return _parcelFromLocalJson(draftData);
+      }
+    } catch (e) {
+      print('❌ Erreur chargement brouillon: $e');
+    }
+    
+    return null;
+  }
+
+  Future<void> _clearLocalDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(LOCAL_DRAFT_KEY);
+      localDraftId.value = '';
+    } catch (e) {
+      print('❌ Erreur nettoyage: $e');
+    }
+  }
+
+  Map<String, dynamic> _parcelToLocalJson(ParcelModel parcel) {
+    final json = parcel.toFirestore();
+    
+    // Gérer les types complexes
+    if (parcel.origin != null) {
+      json['origin_lat'] = parcel.origin!.latitude;
+      json['origin_lng'] = parcel.origin!.longitude;
+      json.remove('origin');
+    }
+    if (parcel.destination != null) {
+      json['destination_lat'] = parcel.destination!.latitude;
+      json['destination_lng'] = parcel.destination!.longitude;
+      json.remove('destination');
+    }
+    
+    return json;
+  }
+
+  ParcelModel _parcelFromLocalJson(Map<String, dynamic> json) {
+    // Reconstruire les GeoFirePoint
+    if (json['origin_lat'] != null && json['origin_lng'] != null) {
+      json['origin'] = GeoPoint(json['origin_lat'], json['origin_lng']);
+    }
+    if (json['destination_lat'] != null && json['destination_lng'] != null) {
+      json['destination'] = GeoPoint(json['destination_lat'], json['destination_lng']);
+    }
+    
+    // Utiliser un mock DocumentSnapshot
+    final mockDoc = _MockDocumentSnapshot(json, json['id'] ?? '');
+    return ParcelModel.fromFirestore(mockDoc as DocumentSnapshot<Object?>);
+  }
+
+  @override
+  void onClose() {
+    _stopLocalAutoSave();
+    super.onClose();
+  }
+}
+
+// ✅ AJOUTER cette classe helper à la fin du fichier :
+class _MockDocumentSnapshot {
+  final Map<String, dynamic> _data;
+  final String id;
+  
+  _MockDocumentSnapshot(this._data, this.id);
+  
+  Map<String, dynamic> data() => _data;
+}
 /// Calcule le prix total incluant tous les frais
 /*
 double calculateTotalWithInsurance() {
@@ -893,4 +1239,3 @@ Map<String, double> getCostBreakdownWithInsurance() {
   
   return currentParcel.value!.getCostBreakdown();
 }*/
-}

@@ -7,12 +7,100 @@ import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_ar
 // Import des étapes
 import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_colis.dart';
 import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_depart.dart';
+import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_payment_choice.dart';
 import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_prix.dart';
 
 
 /// 🔄 Assistant de création de colis, 4 étapes avec transitions fluides.
 /// Chaque étape gère son propre bouton "Suivant".
-class ParcelWizardPage extends StatelessWidget {
+class ParcelWizardPage extends StatefulWidget {
+  const ParcelWizardPage({super.key});
+
+  @override
+  State<ParcelWizardPage> createState() => _ParcelWizardPageState();
+}
+
+class _ParcelWizardPageState extends State<ParcelWizardPage> {
+  bool _isInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeController();
+  }
+
+  Future<void> _initializeController() async {
+    try {
+      // Le contrôleur est déjà permanent depuis main.dart
+      final controller = Get.find<ParcelsController>();
+      
+      // Initialiser seulement si pas déjà fait
+      if (controller.currentParcel.value == null) {
+        await controller.initParcel();
+      }
+      
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
+    } catch (e) {
+      print('❌ Erreur initialisation ParcelWizard: $e');
+      if (mounted) {
+        setState(() => _isInitialized = true);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInitialized) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Préparation de votre colis...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final parcelController = Get.find<ParcelsController>();
+
+    return Obx(() {
+      final parcel = parcelController.currentParcel.value;
+
+      if (parcel == null || parcelController.isLoading.value) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+
+      return Scaffold(
+        backgroundColor: Theme.of(context).colorScheme.surface,
+        body: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: (child, animation) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+          child: steps[parcelController.currentStep.value],
+        ),
+      );
+    });
+  }
+
+  // ✅ VOS ÉTAPES EXISTANTES restent inchangées
+  final List<Widget> steps = [
+    ParcelStepColis(),
+    ParcelStepDepart(),
+    ParcelStepArrivee(),
+    ParcelStepPrix(),
+    ParcelStepPaymentChoice(),
+  ];
+}
+/*class ParcelWizardPage extends StatelessWidget {
   ParcelWizardPage({super.key});
 
   /*
@@ -63,7 +151,7 @@ class ParcelWizardPage extends StatelessWidget {
       );
     });
   }
-}
+}*/
 
 /*import 'package:flutter/material.dart';
 import 'package:get/get.dart';

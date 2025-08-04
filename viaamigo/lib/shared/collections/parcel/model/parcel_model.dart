@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 import 'package:geoflutterfire_plus/geoflutterfire_plus.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 
@@ -44,6 +45,7 @@ double? platform_fee;     // Frais de plateforme
   String? senderPhone;
   /// Référence vers le document de paiement dans la collection `payments`
   String? paymentId;
+  String? paymentMethod;      // 'pay_now' ou 'pay_later'
 
   /// Statut du paiement lié à ce colis
   /// Valeurs possibles : 'unpaid', 'escrowed', 'paid', 'refunded'
@@ -282,6 +284,7 @@ double? platform_fee;     // Frais de plateforme
     this.quantity = 1,
     this.paymentId,
     this.paymentStatus = 'unpaid',
+    this.paymentMethod = 'pay_later',
     this.paidAt,
     required this.senderId,
     required this.senderName,
@@ -354,6 +357,7 @@ Valeur	Signification
       senderId: userId,
       paymentId: '',
       paymentStatus: 'unpaid',
+      paymentMethod: 'pay_later',
       paidAt: null,
       senderName: userName,
       senderPhone: '',
@@ -427,6 +431,7 @@ if (data['destination'] != null) {
       quantity: data['quantity'] ?? 1,
       paymentId: data['paymentId'] ?? '',
       paymentStatus: data['paymentStatus'] ?? 'unpaid',
+      paymentMethod: data['paymentMethod'] ?? 'pay_later',
       paidAt: data['paidAt']?.toDate(),
       senderId: data['senderId'] ?? '',
       senderName: data['senderName'] ?? '',
@@ -506,6 +511,7 @@ if (data['destination'] != null) {
       'id': id,
       'paymentId': paymentId,
       'paymentStatus': paymentStatus,
+      'paymentMethod': paymentMethod,
       'paidAt': paidAt != null ? Timestamp.fromDate(paidAt!) : null,
       'senderId': senderId,
       'senderName': senderName,
@@ -570,6 +576,7 @@ if (data['destination'] != null) {
     String? id,
     String? paymentId,
     String? paymentStatus,
+    String? paymentMethod, // 'pay_now' ou 'pay_later'
     DateTime? paidAt,
     int? quantity,
     String? senderId,
@@ -631,6 +638,7 @@ if (data['destination'] != null) {
       id: id ?? this.id,
       paymentId: paymentId ?? this.paymentId,
       paymentStatus: paymentStatus ?? this.paymentStatus,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
       paidAt: paidAt ?? this.paidAt,
       quantity: quantity ?? this.quantity,
       senderId: senderId ?? this.senderId,
@@ -715,6 +723,160 @@ if (data['destination'] != null) {
     return ((completedFields / totalFields) * 100).round();
   }
 
+    // ✅ AJOUT OBLIGATOIRE: Méthode fromJson
+  static ParcelModel fromJson(Map<String, dynamic> json) {
+    return ParcelModel(
+      id: json['id'],
+      senderId: json['senderId'] ?? '',
+      paymentId: json['paymentId'] ?? '',
+      paymentStatus: json['paymentStatus'] ?? 'unpaid',
+      paymentMethod: json['paymentMethod'] ?? 'pay_later',
+      paidAt: json['paidAt'] != null ? 
+        (json['paidAt'] is Timestamp ? 
+          (json['paidAt'] as Timestamp).toDate() : 
+          DateTime.parse(json['paidAt'].toString())) : null,
+      senderName: json['senderName'] ?? '',
+      title: json['title'] ?? '',
+      description: json['description'] ?? '',
+      pickupDescription: json['pickupDescription'] ?? '',
+      deliveryDescription: json['deliveryDescription'] ?? '',
+      quantity: json['quantity'] ?? 1,
+      senderPhone: json['senderPhone'] ?? '',
+      weight: (json['weight'] ?? 0.0).toDouble(),
+      size: json['size'] ?? '',
+      dimensions: Map<String, dynamic>.from(json['dimensions'] ?? {
+        'length': 0,
+        'width': 0,
+        'height': 0,
+      }),
+      category: json['category'] ?? 'normal',
+      originAddress: json['originAddress'] ?? '',
+      destinationAddress: json['destinationAddress'] ?? '',
+      recipientName: json['recipientName'] ?? '',
+      recipientPhone: json['recipientPhone'] ?? '',
+      createdAt: json['createdAt'] != null ?
+        (json['createdAt'] is Timestamp ?
+          (json['createdAt'] as Timestamp).toDate() :
+          DateTime.parse(json['createdAt'].toString())) : DateTime.now(),
+      last_edited: json['last_edited'] != null ?
+        (json['last_edited'] is Timestamp ?
+          (json['last_edited'] as Timestamp).toDate() :
+          DateTime.parse(json['last_edited'].toString())) : DateTime.now(),
+      pickup_window: json['pickup_window'] ?? {},
+      delivery_window: json['delivery_window'] ?? {},
+      draft: json['draft'] ?? true,
+      completion_percentage: json['completion_percentage'] ?? 0,
+      navigation_step: json['navigation_step'] ?? 0,
+      status: json['status'] ?? 'draft',
+      isInsured: json['isInsured'] ?? false,
+      insurance_level: json['insurance_level'] ?? 'none',
+      insurance_fee: (json['insurance_fee'] ?? 0.0).toDouble(),
+      platform_fee: (json['platform_fee'] ?? 0.0).toDouble(),
+      delivery_speed: json['delivery_speed'] ?? 'standard',
+      photos: List<String>.from(json['photos'] ?? []),
+      geoIndexReady: json['geoIndexReady'] ?? false,
+      
+      // Champs optionnels
+      primaryPhotoUrl: json['primaryPhotoUrl'],
+      validationErrors: List<String>.from(json['validationErrors'] ?? []),
+      declared_value: json['declared_value']?.toDouble(),
+      estimatedDistance: json['estimatedDistance']?.toDouble(),
+      estimatedPrice: json['estimatedPrice']?.toDouble(),
+      initialPrice: json['initialPrice']?.toDouble(),
+      price: json['price']?.toDouble(),
+      discount_amount: json['discount_amount']?.toDouble(),
+      promo_code_applied: json['promo_code_applied'],
+      pickupHandling: json['pickupHandling'],
+      deliveryHandling: json['deliveryHandling'],
+      totalHandlingFee: json['totalHandlingFee']?.toDouble(),
+      
+      // Géolocalisation
+      origin: json['origin'] != null ? _parseGeoFirePoint(json['origin']) : null,
+      destination: json['destination'] != null ? _parseGeoFirePoint(json['destination']) : null,
+    );
+  }
+  
+  // ✅ HELPER: Parser GeoFirePoint depuis JSON
+  static GeoFirePoint? _parseGeoFirePoint(dynamic geoData) {
+    if (geoData == null) return null;
+    
+    try {
+      if (geoData is Map<String, dynamic>) {
+        final lat = geoData['latitude'] ?? geoData['lat'];
+        final lng = geoData['longitude'] ?? geoData['lng'];
+        if (lat != null && lng != null) {
+          return GeoFirePoint(GeoPoint(lat.toDouble(), lng.toDouble()));
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur parsing GeoFirePoint: $e');
+    }
+    return null;
+  }
+  
+  // ✅ AJOUT OBLIGATOIRE: Méthode toJson pour la sérialisation
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'paymentId': paymentId,
+      'paymentStatus': paymentStatus,
+      'paymentMethod': paymentMethod,
+      'paidAt': paidAt?.toIso8601String(),
+      'senderName': senderName,
+      'title': title,
+      'description': description,
+      'pickupDescription': pickupDescription,
+      'deliveryDescription': deliveryDescription,
+      'quantity': quantity,
+      'senderPhone': senderPhone,
+      'weight': weight,
+      'size': size,
+      'dimensions': dimensions,
+      'category': category,
+      'originAddress': originAddress,
+      'destinationAddress': destinationAddress,
+      'recipientName': recipientName,
+      'recipientPhone': recipientPhone,
+      'createdAt': createdAt.toIso8601String(),
+      'last_edited': last_edited.toIso8601String(),
+      'pickup_window': pickup_window,
+      'delivery_window': delivery_window,
+      'draft': draft,
+      'completion_percentage': completion_percentage,
+      'navigation_step': navigation_step,
+      'status': status,
+      'isInsured': isInsured,
+      'insurance_level': insurance_level,
+      'insurance_fee': insurance_fee,
+      'platform_fee': platform_fee,
+      'delivery_speed': delivery_speed,
+      'photos': photos,
+      'geoIndexReady': geoIndexReady,
+      'primaryPhotoUrl': primaryPhotoUrl,
+      'validationErrors': validationErrors,
+      'declared_value': declared_value,
+      'estimatedDistance': estimatedDistance,
+      'estimatedPrice': estimatedPrice,
+      'initialPrice': initialPrice,
+      'price': price,
+      'discount_amount': discount_amount,
+      'promo_code_applied': promo_code_applied,
+      'pickupHandling': pickupHandling,
+      'deliveryHandling': deliveryHandling,
+      'totalHandlingFee': totalHandlingFee,
+      'origin': origin != null ? {
+        'latitude': origin!.latitude,
+        'longitude': origin!.longitude,
+      } : null,
+      'destination': destination != null ? {
+        'latitude': destination!.latitude,
+        'longitude': destination!.longitude,
+      } : null,
+    };
+  }
+
+
   /// Valide toutes les données du colis
   /// Remplit la liste validationErrors avec les problèmes détectés
   /// Retourne true si le colis est valide, false sinon
@@ -726,9 +888,9 @@ if (data['destination'] != null) {
     //if (description.isEmpty) validationErrors.add('Description manquante');
    // if (pickupDescription.isEmpty) validationErrors.add('Description de ramassage manquante');
     //if (deliveryDescription.isEmpty) validationErrors.add('Description de livraison manquante');
-    if (category.isEmpty) validationErrors.add('Catégorie manquante');
-    if (size.isEmpty) validationErrors.add('Taille manquante');
-    if (weight <= 0) validationErrors.add('Poids invalide');
+    //if (category.isEmpty) validationErrors.add('Catégorie manquante');
+    //if (size.isEmpty) validationErrors.add('Taille manquante');
+    //if (weight <= 0) validationErrors.add('Poids invalide');
     if (originAddress.isEmpty) validationErrors.add('Adresse de départ manquante');
     if (destinationAddress.isEmpty) validationErrors.add('Adresse de destination manquante');
     if (recipientName.isEmpty) validationErrors.add('Nom du destinataire manquant');
@@ -965,6 +1127,7 @@ bool get isPaid => paymentStatus == 'paid';
 bool get isEscrowed => paymentStatus == 'escrowed';
 bool get isUnpaid => paymentStatus == 'unpaid';
 bool get isRefunded => paymentStatus == 'refunded';
+
 
 /// Calculate total price including insurance and platform fees
 /*double calculateTotalPrice() {

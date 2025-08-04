@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "800301662832",
+    "project_id": "viaamigo-9fea7",
+    "storage_bucket": "viaamigo-9fea7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:800301662832:android:309970bbf1a1107d876ab5",
+        "android_client_info": {
+          "package_name": "com.example.viaamigo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnQ-wY0StBaJH22qksYzdiSUsl-5ISHYo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

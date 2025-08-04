@@ -961,6 +961,7 @@ Widget _buildSummarySection() {
       if (!_validateAllFields()) return;
       _saveData();
       //Get.find<NavigationController>().navigateToNamed('parcel-step-next'); // ← à adapter selon ton routing
+      controller.nextStep();
     }, 
       text: "Next step",
       height: 56,

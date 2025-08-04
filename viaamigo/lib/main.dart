@@ -54,6 +54,8 @@ import 'package:viaamigo/src/fonctionnalites/onboarding/screens/onboarding_scree
 import 'package:viaamigo/src/fonctionnalites/settings_pages/screens/settings.dart';
 import 'package:viaamigo/src/utilitaires/theme/app_theme.dart';
 import 'package:viaamigo/src/utilitaires/theme_controller.dart';
+import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.dart';
+
 
 
 /// Point d'entrée principal de l'application
@@ -106,6 +108,7 @@ Future<void> main() async {
   Get.put(UserDevicesController(), permanent: true);
   Get.put(UserController(), permanent: true);
   Get.put(SignupController(), permanent: true);
+  Get.put(ParcelsController(), permanent: true);  // 🆕 NOUVEAU
   
   // 🧭 NOUVEAU: Injection du contrôleur de navigation centralisée
   Get.put(NavigationController(), permanent: true);
