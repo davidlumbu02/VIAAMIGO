@@ -77,6 +77,16 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   bool get isReadyToPublish => currentParcel.value?.isReadyToPublish() ?? false;
   int get completionPercentage => currentParcel.value?.completion_percentage ?? 0;
   bool get isDraft => currentParcel.value?.draft ?? true;
+    // Nouvelle propriété pour tracker si on vient de naviguer vers le wizard
+  var _justNavigatedToWizard = false.obs;
+  var _modalAlreadyShown = false.obs;
+
+  // Méthode appelée quand on navigue vers le wizard
+  void onNavigateToWizard() {
+    print("ParcelsController: onNavigateToWizard called");
+    _justNavigatedToWizard.value = true;
+    _modalAlreadyShown.value = false;
+  }
   
   // Initialiser un nouveau colis ou récupérer un brouillon existant
   /*Future<void> initParcel({String? existingParcelId}) async {
@@ -1193,6 +1203,148 @@ bool validateInsuranceInfo() {
     
     return json;
   }
+  /// Vérifie s'il existe un brouillon local récent
+Future<bool> hasLocalDraft() async {
+  final draft = await _loadLocalDraft();
+  return draft != null && _isRecentDraft(draft);
+}
+
+/// Efface le brouillon local et recommence
+Future<void> clearLocalDraft() async {
+  await _clearLocalDraft();
+  isLocalMode.value = true;
+  currentParcel.value = null;
+  currentStep.value = 0;
+  localDraftId.value = '';
+  _stopLocalAutoSave();
+}
+  // ✅ NOUVELLE MÉTHODE : Reset complet quand l'utilisateur annule
+  void onUserCancelledDraftChoice() {
+    print("ParcelsController: onUserCancelledDraftChoice called");
+    
+    // Reset tous les flags
+    _justNavigatedToWizard.value = false;
+    _modalAlreadyShown.value = false;
+    
+    // Optionnel : Sauvegarder le brouillon actuel avant de partir
+    if (isLocalMode.value && currentParcel.value != null && _hasSignificantContent(currentParcel.value!)) {
+      _saveLocalDraft();
+      print("💾 Draft saved before returning to role selection");
+    }
+    
+    // Arrêter l'auto-save local
+    _stopLocalAutoSave();
+  }
+
+/// Détermine s'il faut afficher le modal de choix de brouillon
+ Future<bool> shouldShowDraftModal() async {
+    print("ParcelsController: shouldShowDraftModal called");
+    print("  - _justNavigatedToWizard: ${_justNavigatedToWizard.value}");
+    print("  - _modalAlreadyShown: ${_modalAlreadyShown.value}");
+    print("  - currentParcel.value != null: ${currentParcel.value != null}");
+    
+    // Si le modal a déjà été montré cette session, ne pas le re-montrer
+    if (_modalAlreadyShown.value) {
+      print("  - Modal already shown, returning false");
+      return false;
+    }
+    
+    // Si on vient de naviguer et qu'il y a un brouillon en mémoire avec du contenu
+    if (_justNavigatedToWizard.value && currentParcel.value != null) {
+      bool hasContent = _hasSignificantContent(currentParcel.value!);
+      print("  - Has significant content: $hasContent");
+      return hasContent;
+    }
+    
+    // Sinon, vérifier s'il y a un brouillon sauvegardé localement
+    final localDraft = await _loadLocalDraft();
+    if (localDraft != null && _isRecentDraft(localDraft)) {
+      bool hasContent = _hasSignificantContent(localDraft);
+      print("  - Local draft has significant content: $hasContent");
+      return hasContent;
+    }
+    
+    return false;
+  }
+  // Méthode appelée quand le modal est montré
+  void onDraftModalShown() {
+    print("ParcelsController: onDraftModalShown called");
+    _modalAlreadyShown.value = true;
+    _justNavigatedToWizard.value = false;
+  }
+
+
+  // Méthode pour continuer le brouillon existant
+  Future<void> continueDraft() async {
+    print("ParcelsController: continueDraft called");
+    _modalAlreadyShown.value = true;
+    _justNavigatedToWizard.value = false;
+    
+    // Si on n'a pas de brouillon en mémoire, le charger depuis le stockage local
+    if (currentParcel.value == null) {
+      final localDraft = await _loadLocalDraft();
+      if (localDraft != null) {
+        currentParcel.value = localDraft;
+        currentStep.value = localDraft.navigation_step;
+        isLocalMode.value = true;
+        _startLocalAutoSave();
+      } else {
+        // Fallback : créer un nouveau brouillon
+        await initParcel();
+      }
+    }
+    // Sinon, le brouillon est déjà chargé, on continue simplement
+  }
+// Méthode pour commencer un nouveau colis
+  Future<void> startNewParcel() async {
+    print("ParcelsController: startNewParcel called");
+    _modalAlreadyShown.value = true;
+    _justNavigatedToWizard.value = false;
+    
+    // Sauvegarder l'ancien brouillon avant de le remplacer (optionnel)
+    if (currentParcel.value != null && _hasSignificantContent(currentParcel.value!)) {
+      await _saveLocalDraft();
+    }
+    
+    // Effacer le brouillon actuel et créer un nouveau
+    await clearLocalDraft();
+    await initParcel();
+  }
+
+  // Méthode modifiée pour reset quand on quitte vraiment le wizard
+  void onLeaveWizard() {
+    print("ParcelsController: onLeaveWizard called");
+    _justNavigatedToWizard.value = false;
+    _modalAlreadyShown.value = false;
+    // Sauvegarder le brouillon actuel si on est en mode local
+    if (isLocalMode.value && currentParcel.value != null && _hasSignificantContent(currentParcel.value!)) {
+      _saveLocalDraft();
+    }
+  }
+/// Vérifie si le parcel a du contenu significatif qui mérite de proposer de continuer
+bool _hasSignificantContent(ParcelModel parcel) {
+  return parcel.title.isNotEmpty || 
+         parcel.description!.isNotEmpty ||
+         parcel.weight > 0 ||
+         parcel.originAddress.isNotEmpty ||
+         parcel.destinationAddress.isNotEmpty ||
+         parcel.photos.isNotEmpty;
+}
+
+/// Force l'affichage du modal au prochain lancement (optionnel)
+void markForDraftChoice() {
+  // Cette méthode peut être appelée quand vous quittez le formulaire
+  // pour forcer l'affichage du modal au prochain retour
+  if (currentParcel.value != null && _hasSignificantContent(currentParcel.value!)) {
+  }
+}
+
+// Ajoutez cette variable privée
+
+/// Version publique de _clearLocalDraft pour l'accès externe
+Future<void> clearLocalDraftPublic() async {
+  await _clearLocalDraft();
+}
 
   ParcelModel _parcelFromLocalJson(Map<String, dynamic> json) {
     // Reconstruire les GeoFirePoint
@@ -1224,6 +1376,7 @@ class _MockDocumentSnapshot {
   
   Map<String, dynamic> data() => _data;
 }
+
 /// Calcule le prix total incluant tous les frais
 /*
 double calculateTotalWithInsurance() {
