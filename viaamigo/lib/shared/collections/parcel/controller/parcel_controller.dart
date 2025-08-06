@@ -78,8 +78,8 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   int get completionPercentage => currentParcel.value?.completion_percentage ?? 0;
   bool get isDraft => currentParcel.value?.draft ?? true;
     // Nouvelle propriété pour tracker si on vient de naviguer vers le wizard
-  var _justNavigatedToWizard = false.obs;
-  var _modalAlreadyShown = false.obs;
+  final _justNavigatedToWizard = false.obs;
+  final _modalAlreadyShown = false.obs;
 
   // Méthode appelée quand on navigue vers le wizard
   void onNavigateToWizard() {
@@ -181,6 +181,18 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
     }
   }
   */
+  Map<String, dynamic> toJsonForLocalStorage() {
+  final data = currentParcel.value?.toMap() ?? {};
+  
+  // ✅ Convertir les Timestamp en chaînes
+  data.forEach((key, value) {
+    if (value is Timestamp) {
+      data[key] = value.toDate().toIso8601String();
+    }
+  });
+  
+  return data;
+}
     Future<void> initParcel({String? existingParcelId}) async {
     isLoading.value = true;
     errorMessage.value = '';

@@ -1217,4 +1217,265 @@ static Map<String, dynamic>? getInsuranceOption(String key) {
     // et pour des traitements supplémentaires si nécessaire
     ai_recognition_results = aiResponse;
   }
+
+  static ParcelModel fromMap(Map<String, dynamic> map) {
+  return ParcelModel(
+    // Identifiants
+    id: map['id'],
+    senderId: map['senderId'] ?? '',
+    senderName: map['senderName'] ?? '',
+    senderPhone: map['senderPhone'],
+    
+    // Informations du colis
+    title: map['title'] ?? '',
+    description: map['description'],
+    pickupDescription: map['pickupDescription'] ?? '',
+    deliveryDescription: map['deliveryDescription'] ?? '',
+    weight: (map['weight'] ?? 0.0).toDouble(),
+    size: map['size'] ?? '',
+    dimensions: Map<String, dynamic>.from(map['dimensions'] ?? {
+      'length': 0, 'width': 0, 'height': 0,
+    }),
+    category: map['category'] ?? 'normal',
+    quantity: map['quantity'] ?? 1,
+    photos: List<String>.from(map['photos'] ?? []),
+    primaryPhotoUrl: map['primaryPhotoUrl'],
+    
+    // Adresses
+    originAddress: map['originAddress'] ?? '',
+    destinationAddress: map['destinationAddress'] ?? '',
+    recipientName: map['recipientName'] ?? '',
+    recipientPhone: map['recipientPhone'] ?? '',
+    estimatedDistance: (map['estimatedDistance'] as num?)?.toDouble(),
+    
+    // Géolocalisation
+    origin: _parseGeoFirePointFromMap(map['origin']),
+    destination: _parseGeoFirePointFromMap(map['destination']),
+    
+    // Dates - ✅ Conversion sécurisée depuis String
+    createdAt: _stringToDateTime(map['createdAt']) ?? DateTime.now(),
+    last_edited: _stringToDateTime(map['last_edited']) ?? DateTime.now(),
+    expiresAt: _stringToDateTime(map['expiresAt']),
+    paidAt: _stringToDateTime(map['paidAt']),
+    
+    // Fenêtres temporelles
+    pickup_window: _parseTimeWindow(map['pickup_window']),
+    delivery_window: _parseTimeWindow(map['delivery_window']),
+    
+    // Prix et paiement
+    price: (map['price'] as num?)?.toDouble(),
+    estimatedPrice: (map['estimatedPrice'] as num?)?.toDouble(),
+    initialPrice: (map['initialPrice'] as num?)?.toDouble(),
+    paymentId: map['paymentId'],
+    paymentMethod: map['paymentMethod'] ?? 'pay_later',
+    paymentStatus: map['paymentStatus'] ?? 'unpaid',
+    discount_amount: (map['discount_amount'] as num?)?.toDouble(),
+    promo_code_applied: map['promo_code_applied'],
+    
+    // Statut
+    status: map['status'] ?? 'draft',
+    draft: map['draft'] ?? true,
+    completion_percentage: map['completion_percentage'] ?? 0,
+    navigation_step: map['navigation_step'] ?? 0,
+    
+    // Assurance
+    isInsured: map['isInsured'] ?? false,
+    declared_value: (map['declared_value'] as num?)?.toDouble(),
+    insurance_level: map['insurance_level'] ?? 'none',
+    insurance_fee: (map['insurance_fee'] as num?)?.toDouble(),
+    platform_fee: (map['platform_fee'] as num?)?.toDouble(),
+    
+    // Handling
+    pickupHandling: map['pickupHandling'],
+    deliveryHandling: map['deliveryHandling'],
+    totalHandlingFee: (map['totalHandlingFee'] as num?)?.toDouble(),
+    
+    // Autres champs
+    delivery_speed: map['delivery_speed'] ?? 'standard',
+    matchId: map['matchId'],
+    insuranceId: map['insuranceId'],
+    ai_recognition_results: map['ai_recognition_results'],
+    pickup_point_id: map['pickup_point_id'],
+    delivery_point_id: map['delivery_point_id'],
+    organizationId: map['organizationId'],
+    bulk_import_id: map['bulk_import_id'],
+    geoIndexReady: map['geoIndexReady'] ?? false,
+    g: map['g'],
+    validationErrors: List<String>.from(map['validationErrors'] ?? []),
+  );
+}
+
+/// ✅ Méthodes helper pour la conversion inverse
+static DateTime? _stringToDateTime(dynamic dateString) {
+  if (dateString == null) return null;
+  if (dateString is DateTime) return dateString;
+  if (dateString is String && dateString.isNotEmpty) {
+    try {
+      return DateTime.parse(dateString);
+    } catch (e) {
+      print('❌ Erreur conversion date: $dateString');
+      return null;
+    }
+  }
+  return null;
+}
+
+static GeoFirePoint? _parseGeoFirePointFromMap(dynamic geoData) {
+  if (geoData == null) return null;
+  
+  try {
+    if (geoData is Map<String, dynamic>) {
+      final lat = geoData['latitude'];
+      final lng = geoData['longitude'];
+      if (lat != null && lng != null) {
+        return GeoFirePoint(GeoPoint(lat.toDouble(), lng.toDouble()));
+      }
+    }
+  } catch (e) {
+    print('❌ Erreur parsing GeoFirePoint: $e');
+  }
+  return null;
+}
+
+static Map<String, dynamic> _parseTimeWindow(dynamic timeWindow) {
+  if (timeWindow == null) return {};
+  
+  final Map<String, dynamic> window = Map<String, dynamic>.from(timeWindow);
+  final converted = <String, dynamic>{};
+  
+  window.forEach((key, value) {
+    if (value is String) {
+      final dateTime = _stringToDateTime(value);
+      converted[key] = dateTime != null ? Timestamp.fromDate(dateTime) : value;
+    } else {
+      converted[key] = value;
+    }
+  });
+  
+  return converted;
+}
+Map<String, dynamic> toMap() {
+  return {
+    // Identifiants
+    'id': id,
+    'senderId': senderId,
+    'senderName': senderName,
+    'senderPhone': senderPhone,
+    
+    // Informations du colis
+    'title': title,
+    'description': description,
+    'pickupDescription': pickupDescription,
+    'deliveryDescription': deliveryDescription,
+    'weight': weight,
+    'size': size,
+    'dimensions': dimensions,
+    'category': category,
+    'quantity': quantity,
+    'photos': photos,
+    'primaryPhotoUrl': primaryPhotoUrl,
+    
+    // Adresses et localisation
+    'originAddress': originAddress,
+    'destinationAddress': destinationAddress,
+    'recipientName': recipientName,
+    'recipientPhone': recipientPhone,
+    'estimatedDistance': estimatedDistance,
+    
+    // Géolocalisation - ✅ Conversion sécurisée
+    'origin': origin != null ? {
+      'latitude': origin!.latitude,
+      'longitude': origin!.longitude,
+    } : null,
+    'destination': destination != null ? {
+      'latitude': destination!.latitude,
+      'longitude': destination!.longitude,
+    } : null,
+    
+    // Dates - ✅ Conversion sécurisée des Timestamp
+    'createdAt': _timestampToString(createdAt),
+    'last_edited': _timestampToString(last_edited),
+    'expiresAt': _timestampToString(expiresAt),
+    'paidAt': _timestampToString(paidAt),
+    
+    // Fenêtres temporelles - ✅ Conversion des Timestamp dans les Maps
+    'pickup_window': _convertTimeWindow(pickup_window),
+    'delivery_window': _convertTimeWindow(delivery_window),
+    
+    // Prix et paiement
+    'price': price,
+    'estimatedPrice': estimatedPrice,
+    'initialPrice': initialPrice,
+    'paymentId': paymentId,
+    'paymentMethod': paymentMethod,
+    'paymentStatus': paymentStatus,
+    'discount_amount': discount_amount,
+    'promo_code_applied': promo_code_applied,
+    
+    // Statut et workflow
+    'status': status,
+    'draft': draft,
+    'completion_percentage': completion_percentage,
+    'navigation_step': navigation_step,
+    
+    // Assurance et frais
+    'isInsured': isInsured,
+    'declared_value': declared_value,
+    'insurance_level': insurance_level,
+    'insurance_fee': insurance_fee,
+    'platform_fee': platform_fee,
+    
+    // Handling et frais
+    'pickupHandling': pickupHandling,
+    'deliveryHandling': deliveryHandling,
+    'totalHandlingFee': totalHandlingFee,
+    
+    // Préférences et options
+    'delivery_speed': delivery_speed,
+    'matchId': matchId,
+    'insuranceId': insuranceId,
+    
+    // Métadonnées et avancé
+    'ai_recognition_results': ai_recognition_results,
+    'pickup_point_id': pickup_point_id,
+    'delivery_point_id': delivery_point_id,
+    'organizationId': organizationId,
+    'bulk_import_id': bulk_import_id,
+    'geoIndexReady': geoIndexReady,
+    'g': g,
+    'validationErrors': validationErrors,
+  };
+}
+
+/// ✅ Méthode helper pour convertir les Timestamp de façon sécurisée
+String? _timestampToString(dynamic timestamp) {
+  if (timestamp == null) return null;
+  
+  if (timestamp is Timestamp) {
+    return timestamp.toDate().toIso8601String();
+  } else if (timestamp is DateTime) {
+    return timestamp.toIso8601String();
+  } else if (timestamp is String) {
+    return timestamp;
+  }
+  
+  return null;
+}
+
+/// ✅ Méthode helper pour convertir les fenêtres temporelles
+Map<String, dynamic> _convertTimeWindow(Map<String, dynamic> timeWindow) {
+  final converted = <String, dynamic>{};
+  
+  timeWindow.forEach((key, value) {
+    if (value is Timestamp) {
+      converted[key] = value.toDate().toIso8601String();
+    } else if (value is DateTime) {
+      converted[key] = value.toIso8601String();
+    } else {
+      converted[key] = value;
+    }
+  });
+  
+  return converted;
+}
 }

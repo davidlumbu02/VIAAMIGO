@@ -117,10 +117,15 @@ Future<void> _showDraftChoiceModal(ParcelsController controller) async {
     child: _buildDraftChoiceContent(context),
   );
    print('🔍 Modal dismissed with choice: $choice');
+   // ✅ AJOUTEZ CES LOGS
+print('🔍 DEBUG - choice returned: $choice');
+print('🔍 DEBUG - choice is null: ${choice == null}');
   // Traiter le choix
   if (choice == 'continue') {
+    print('✅ User chose continue');
     await controller.continueDraft();
   } else if (choice == 'new') {
+    print('✅ User chose new');
     await controller.startNewParcel();
   } else {
     // ✅ CAS NOUVEAU : Modal fermé sans choix → Retourner à RoleSelectionPage
@@ -134,9 +139,19 @@ Future<void> _handleModalDismissedToRoleSelection(ParcelsController controller) 
   
   // 1. Nettoyer l'état du contrôleur de colis
   controller.onLeaveWizard();
-  
+    await Future.delayed(const Duration(milliseconds: 400));
   // 2. Naviguer vers le tab role-selection (index 2)
-  navigationController.goToTab(2);
+   print('🔄 [AppShell] Modal fermée, retour par historique...');
+  
+  // Navigation par l'historique au lieu d'aller directement à l'onglet
+  if (navigationController.canGoBack()) {
+    navigationController.goBack();
+    print('✅ [AppShell] Retour effectué via l\'historique');
+  } else {
+    // Fallback si pas d'historique disponible
+    print('⚠️ [AppShell] Pas d\'historique, navigation vers l\'onglet par défaut');
+    navigationController.goToTab(2); // Garde comme fallback
+  }
   
 
 }
@@ -160,7 +175,7 @@ Widget _buildDraftChoiceContent(BuildContext context) {
           width: 50,
           height: 5,
           decoration: BoxDecoration(
-            color: colorScheme.onSurfaceVariant.withOpacity(0.4),
+            color: colorScheme.onSurfaceVariant.withAlpha(102),
             borderRadius: BorderRadius.circular(100),
           ),
         ),
@@ -249,10 +264,10 @@ Widget _buildInfoCard(BuildContext context, ColorScheme colorScheme, TextTheme t
     width: double.infinity,
     padding: const EdgeInsets.all(16),
     decoration: BoxDecoration(
-      color: colorScheme.secondaryContainer.withOpacity(0.5),
+      color: colorScheme.secondaryContainer.withAlpha(127),
       borderRadius: BorderRadius.circular(12),
       border: Border.all(
-        color: colorScheme.outline.withOpacity(0.2),
+        color: colorScheme.outline.withAlpha(51),
         width: 1,
       ),
     ),
@@ -332,7 +347,7 @@ Widget _buildActionButtons(BuildContext context, ColorScheme colorScheme, TextTh
           style: OutlinedButton.styleFrom(
             foregroundColor: colorScheme.error,
             side: BorderSide(
-              color: colorScheme.error.withOpacity(0.5),
+              color: colorScheme.error.withAlpha(127),
               width: 1.5,
             ),
             shape: RoundedRectangleBorder(
