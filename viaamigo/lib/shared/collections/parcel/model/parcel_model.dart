@@ -359,7 +359,7 @@ Valeur	Signification
       paymentStatus: 'unpaid',
       paymentMethod: 'pay_later',
       paidAt: null,
-      senderName: userName,
+      senderName: '',
       senderPhone: '',
       title: '',
       description: '',
@@ -566,6 +566,7 @@ if (data['destination'] != null) {
       'discount_amount': discount_amount,
       'geoIndexReady': geoIndexReady,
       'g': g,
+      
     };
   }
 

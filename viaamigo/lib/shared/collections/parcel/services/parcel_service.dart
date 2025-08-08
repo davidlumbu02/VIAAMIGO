@@ -4,11 +4,13 @@ import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
 import 'package:viaamigo/shared/collections/parcel/services/photo_upload_service.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ✅ AJOUT CRITIQUE
 //import 'package:viaamigo/shared/utilis/geo_utils.dart';
 
 
 class ParcelsService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseAuth _auth = FirebaseAuth.instance; // ✅ AJOUT CRITIQUE
   
   
   // Collection reference
@@ -17,9 +19,74 @@ class ParcelsService {
   // Créer un colis vide (brouillon)
   Future<String> createEmptyParcel(ParcelModel parcel) async {
     try {
+      
+            final currentUser = _auth.currentUser;
+      
+      print('🔐 === DEBUG AUTHENTIFICATION ===');
+      print('🔐 Current user: ${currentUser?.uid}');
+      print('🔐 User email: ${currentUser?.email}');
+      print('🔐 User displayName: ${currentUser?.displayName}');
+      print('🔐 Auth token exists: ${currentUser != null}');
+      
+      if (currentUser == null) {
+        throw Exception('❌ ERREUR CRITIQUE: Utilisateur non authentifié !');
+      }
+      if (currentUser == null) {
+        throw Exception('❌ ERREUR CRITIQUE: Utilisateur non authentifié !');
+      }
+      
+      // 🔐 VÉRIFICATION ET CORRECTION DU senderId
+      print('🔐 Parcel senderId AVANT correction: ${parcel.senderId}');
+      
+      if (parcel.senderId == null || parcel.senderId.isEmpty) {
+        print('🔄 Attribution automatique du senderId: ${currentUser.uid}');
+        parcel.senderId = currentUser.uid;
+      } else if (parcel.senderId != currentUser.uid) {
+        print('⚠️  SenderId différent détecté !');
+        print('   Current user: ${currentUser.uid}');
+        print('   Parcel senderId: ${parcel.senderId}');
+        print('🔄 Correction forcée du senderId');
+        parcel.senderId = currentUser.uid;
+      }
+      
+      print('🔐 Parcel senderId APRÈS correction: ${parcel.senderId}');
+      print('🔐 SenderId match: ${parcel.senderId == currentUser.uid}');
+      
+      // 📋 PRÉPARATION DES DONNÉES POUR FIRESTORE
+      final parcelData = parcel.toFirestore();
+      
+      print('📋 === DONNÉES ENVOYÉES À FIRESTORE ===');
+      print('📋 Nombre de champs: ${parcelData.length}');
+      
+      // Debug des champs critiques
+      parcelData.forEach((key, value) {
+        if (key == 'senderId') {
+          print('   ⭐ $key: $value (${value.runtimeType}) ← CRITIQUE');
+        } else if (value is Timestamp) {
+          print('   🕐 $key: $value (Timestamp)');
+        } else if (value == null) {
+          print('   ⚪ $key: null');
+        } else {
+          print('   📝 $key: ${value.toString().length > 50 ? value.toString().substring(0, 50) + "..." : value} (${value.runtimeType})');
+        }
+      });
+     // 🚀 TENTATIVE DE CRÉATION FIRESTORE
+      print('🚀 Tentative de création dans Firestore...');
       final docRef = await _parcelsCollection.add(parcel.toFirestore());
+      print('✅ ✅ ✅ SUCCÈS ! Parcel créé avec ID: ${docRef.id}');
       return docRef.id;
     } catch (e) {
+            print('❌ ❌ ❌ ERREUR DÉTAILLÉE createEmptyParcel:');
+      print('   Type: ${e.runtimeType}');
+      print('   Message: $e');
+      
+      // Analyse spécifique des erreurs Firestore
+      if (e.toString().contains('permission-denied')) {
+        print('🚨 ERREUR DE PERMISSIONS FIRESTORE !');
+        print('   Vérifiez les règles Firestore');
+        print('   User ID: ${_auth.currentUser?.uid}');
+        print('   SenderId dans parcel: ${parcel.senderId}');
+      }
       throw Exception('Erreur lors de la création du colis: $e');
     }
   }

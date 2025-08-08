@@ -399,6 +399,66 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
       isSaving.value = false;
     }
   }
+  // ✅ NOUVELLE MÉTHODE : Reset complet après publication
+/*Future<void> _resetControllerAfterPublication() async {
+  print('🧹 Nettoyage complet du contrôleur après publication...');
+  
+  try {
+    // 1. Arrêter tous les timers
+    _stopLocalAutoSave();
+    
+    // 2. Reset des données principales
+    currentParcel.value = null;
+    currentStep.value = 0;
+    
+    // 3. Reset des flags de navigation
+    _justNavigatedToWizard.value = false;
+    _modalAlreadyShown.value = false;
+    
+    // 4. Reset du mode local
+    isLocalMode.value = true;  // Retour au mode local par défaut
+    localDraftId.value = '';
+    
+    // 5. Reset des observables de validation
+    titleValid.value = false;
+    descriptionValid.value = false;
+    weightValid.value = false;
+    originValid.value = false;
+    destinationValid.value = false;
+    recipientValid.value = false;
+    
+    // 6. Reset des observables d'assurance et prix
+    isInsured.value = false;
+    insuranceLevel.value = 'none';
+    declaredValue.value = 0.0;
+    insuranceFee.value = 0.0;
+    platformFee.value = 0.0;
+    finalPrice.value = 0.0;
+    
+    // 7. Reset des observables de paiement
+    paymentStatus.value = 'unpaid';
+    paymentId.value = '';
+    paidAt.value = null;
+    
+    // 8. Reset des listes
+    photosList.clear();
+    primaryPhoto.value = '';
+    validationErrorsList.clear();
+    
+    // 9. Reset des flags d'état
+    isLoading.value = false;
+    isSaving.value = false;
+    autoSave.value = true;
+    errorMessage.value = '';
+    
+    // 10. Nettoyer le stockage local
+    await _clearLocalDraft();
+    
+    print('✅ Nettoyage complet terminé');
+  } catch (e) {
+    print('❌ Erreur lors du nettoyage: $e');
+  }
+}*/
   // Publier le colis (passer de brouillon à publié)
     Future<bool> publishParcel() async {
     if (currentParcel.value == null) return false;
@@ -406,6 +466,7 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
     // ✅ AJOUTER CETTE LOGIQUE AU DÉBUT :
     if (isLocalMode.value) {
       print('🔄 Transition vers Firestore pour publication...');
+      print(isLocalMode.value ? 'Mode local' : 'Mode Firestore');
       await _transitionToFirestore();
     }
     
@@ -424,9 +485,15 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
       currentParcel.value!.draft = false;
       currentParcel.value!.status = 'pending';
       
-      // ✅ AJOUTER cette ligne :
-      await _clearLocalDraft();
       
+    // ✅ Reset UNIQUEMENT après succès confirmé
+    try {
+      await _clearLocalDraft();
+      await _forceCompleteReset();
+      print('✅ Reset exécuté après publication réussie');
+    } catch (resetError) {
+      print('⚠️ Erreur lors du reset (publication réussie): $resetError');
+    }
       return true;
     } catch (e) {
       errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
@@ -1118,7 +1185,7 @@ bool validateInsuranceInfo() {
            currentParcel.value!.destinationAddress.isNotEmpty;
   }
 
-  Future<void> _transitionToFirestore() async {
+  Future<void>    _transitionToFirestore() async {
     if (!isLocalMode.value || currentParcel.value == null) return;
     
     try {
@@ -1187,12 +1254,62 @@ bool validateInsuranceInfo() {
     
     return null;
   }
-
+// ✅ AJOUTER cette méthode dans ParcelsController
+Future<void> _forceCompleteReset() async {
+  print('🧹 FORCE COMPLETE RESET - DÉBUT');
+  print('🧹 FORCE RESET - Avant: currentParcel=${currentParcel.value?.id}');
+  // 1. Arrêter tous les timers
+  _stopLocalAutoSave();
+  
+  // 2. Reset BRUTAL de toutes les variables
+  currentParcel.value = null;
+  currentStep.value = 0;
+  isLocalMode.value = true;
+  localDraftId.value = '';
+  _justNavigatedToWizard.value = false;
+  _modalAlreadyShown.value = false;
+  
+  // 3. Reset tous les observables
+  titleValid.value = false;
+  weightValid.value = false;
+  originValid.value = false;
+  destinationValid.value = false;
+  recipientValid.value = false;
+  
+  isInsured.value = false;
+  insuranceLevel.value = 'none';
+  declaredValue.value = 0.0;
+  insuranceFee.value = 0.0;
+  platformFee.value = 0.0;
+  finalPrice.value = 0.0;
+  
+  paymentStatus.value = 'unpaid';
+  paymentId.value = '';
+  paidAt.value = null;
+  
+  photosList.clear();
+  primaryPhoto.value = '';
+  validationErrorsList.clear();
+  errorMessage.value = '';
+  
+  isLoading.value = false;
+  isSaving.value = false;
+  autoSave.value = true;
+  print('🧹 FORCE RESET - Après: currentParcel=${currentParcel.value}');
+  // 4. Nettoyer le stockage local
+  await _clearLocalDraft();
+  
+  // 5. Forcer la mise à jour de l'interface
+  update();
+  
+  print('🧹 FORCE COMPLETE RESET - TERMINÉ');
+}
   Future<void> _clearLocalDraft() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(LOCAL_DRAFT_KEY);
       localDraftId.value = '';
+      print('💾 Brouillon nettoyé localement');
     } catch (e) {
       print('❌ Erreur nettoyage: $e');
     }
@@ -1212,7 +1329,18 @@ bool validateInsuranceInfo() {
       json['destination_lng'] = parcel.destination!.longitude;
       json.remove('destination');
     }
-    
+     // ✅ AJOUTEZ CES LIGNES ICI :
+  for (var windowKey in ['pickup_window', 'delivery_window']) {
+    if (json[windowKey] is Map) {
+      final window = json[windowKey] as Map<String, dynamic>;
+      if (window['start_time'] is Timestamp) {
+        window['start_time'] = (window['start_time'] as Timestamp).toDate().toIso8601String();
+      }
+      if (window['end_time'] is Timestamp) {
+        window['end_time'] = (window['end_time'] as Timestamp).toDate().toIso8601String();
+      }
+    }
+  }
     return json;
   }
   /// Vérifie s'il existe un brouillon local récent
@@ -1255,6 +1383,13 @@ Future<void> clearLocalDraft() async {
     print("  - _modalAlreadyShown: ${_modalAlreadyShown.value}");
     print("  - currentParcel.value != null: ${currentParcel.value != null}");
     
+    // ✅ CRITIQUE : Vérifier si le parcel est publié
+  if (currentParcel.value != null && !currentParcel.value!.draft) {
+    print("  - Parcel is published, no modal needed");
+    print("  - Parcel is published, auto-starting new parcel");
+    startNewParcel();
+    return false;
+  }
     // Si le modal a déjà été montré cette session, ne pas le re-montrer
     if (_modalAlreadyShown.value) {
       print("  - Modal already shown, returning false");

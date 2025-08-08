@@ -505,7 +505,9 @@ class ParcelStepPaymentChoiceState extends State<ParcelStepPaymentChoice> {
         "Your parcel has been published successfully!\nYou will be notified when a driver accepts your request.",
         title: "Parcel published",
       );
-      
+            // ✅ Le reset est déjà fait dans publishParcel(), 
+      // juste attendre un peu pour la stabilité
+      await Future.delayed(const Duration(milliseconds: 400));
       // Rediriger vers le dashboard ou la liste des colis
       Get.find<NavigationController>().navigateToNamed('home');
       

@@ -126,7 +126,7 @@ void _initializeForm() {
   }
 void _onDimensionModeChanged(bool useExact) {
   useExactDimensions.value = useExact;
-  
+  FocusScope.of(context).unfocus(); // ✅ Ferme le clavier
   if (!useExact) {
     // Passage en mode tailles prédéfinies : vider les dimensions
     lengthController.clear();
@@ -164,157 +164,163 @@ void _onDimensionModeChanged(bool useExact) {
       selectedWeight.value = _getWeightCategory(parcel.weight);
     }
 
-    return Scaffold(
-      backgroundColor: colors.parcelColor,
-      body: Column(
-        children: [
-          buildHeader(context),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: theme.colorScheme.surface,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    sectionTitle(context, "Package photos"),
-                    _photoPicker(context, parcel),
-                    const SizedBox(height: 24),
-
-                    sectionTitle(context, "Description"),
-                          Row(
-                          children: [
-                            Expanded(
-                              flex: 2,
-                              child:  Obx(() =>CustomTextField(
-                                controller: quantityController,
-                                //hintText: 'Quantité',
-                                keyboardType: TextInputType.number,
-                                borderRadius: 10,
-                                isTransparent: true,
-                                borderColor: quantityHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77), // ✅ ICI
-                                onChanged: (_) => quantityHasError.value = false,
-                                
-                              ),)
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              flex: 5,
-                              child:  Obx(() =>CustomTextField(
-                                controller: titleController,
-                                labelText: 'Title',
-                                hintText: 'Ex: Handbag, TV...',
-                                //onSubmitted: (val) => controller.updateField('title', val),
-                                borderRadius: 10,
-                                isTransparent: true,
-                                borderColor: titleHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
-                               onChanged: (_) => titleHasError.value = false,
-                              ),)
-                            )
-                          ],
-                        ),
-
-
-                    const SizedBox(height: 24),
-                    sectionTitle(context, "Dimensions"),
-                    Obx(() => Row(
-                          children: [
-                            Text("I know the exact dimensions", style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
-                            const Spacer(),
-                            Switch(value: useExactDimensions.value, onChanged: _onDimensionModeChanged),
-                            //Switch(value: useExactDimensions.value, onChanged: useExactDimensions.call),
-                          ],
-                        )),
-                    const SizedBox(height: 8),
-                    Obx(() => useExactDimensions.value 
-                      ? _exactDimensions(parcel)
-                      : buildButtonTextLogo(
-                          context,
-
-                          label: selectedSize.value.isNotEmpty 
-                              ? selectedSize.value 
-                              : "Choose a size",
-                          icon: LucideIcons.ruler,
-                          isFilled: false,
-                          alignIconStart: true,
-                          borderRadius: 10,
-                          height: 50,
-                          endIcon: Icons.expand_more,
-                          bordercolerput: sizeHasError.value
-                          ? Colors.red
-                          : theme.colorScheme.primary.withAlpha(77),
-                          onTap: () async {
-                            // Utiliser la valeur actuelle de selectedSize comme référence
-                            final currentSize = selectedSize.value.isNotEmpty 
+    return GestureDetector(
+    onTap: () => FocusScope.of(context).unfocus(), // ✅ Ferme le clavier au clic extérieur
+  behavior: HitTestBehavior.translucent, // Important pour capturer les taps "vides"
+      child: Scaffold(
+        backgroundColor: colors.parcelColor,
+        body: Column(
+          children: [
+            buildHeader(context),
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surface,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                   keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      sectionTitle(context, "Package photos"),
+                      _photoPicker(context, parcel),
+                      const SizedBox(height: 24),
+      
+                      sectionTitle(context, "Description"),
+                            Row(
+                            children: [
+                              Expanded(
+                                flex: 2,
+                                child:  Obx(() =>CustomTextField(
+                                  controller: quantityController,
+                                  //hintText: 'Quantité',
+                                  keyboardType: TextInputType.number,
+                                  borderRadius: 10,
+                                  isTransparent: true,
+                                  borderColor: quantityHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77), // ✅ ICI
+                                  onChanged: (_) => quantityHasError.value = false,
+                                  
+                                ),)
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 5,
+                                child:  Obx(() =>CustomTextField(
+                                  controller: titleController,
+                                  labelText: 'Title',
+                                  hintText: 'Ex: Handbag, TV...',
+                                  //onSubmitted: (val) => controller.updateField('title', val),
+                                  borderRadius: 10,
+                                  isTransparent: true,
+                                  borderColor: titleHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
+                                 onChanged: (_) => titleHasError.value = false,
+                                ),)
+                              )
+                            ],
+                          ),
+      
+      
+                      const SizedBox(height: 24),
+                      sectionTitle(context, "Dimensions"),
+                      Obx(() => Row(
+                            children: [
+                              Text("I know the exact dimensions", style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold)),
+                              const Spacer(),
+                              Switch(value: useExactDimensions.value, onChanged: _onDimensionModeChanged),
+                              //Switch(value: useExactDimensions.value, onChanged: useExactDimensions.call),
+                            ],
+                          )),
+                      const SizedBox(height: 8),
+                      Obx(() => useExactDimensions.value 
+                        ? _exactDimensions(parcel)
+                        : buildButtonTextLogo(
+                            context,
+      
+                            label: selectedSize.value.isNotEmpty 
                                 ? selectedSize.value 
-                                : controller.currentParcel.value?.size ?? "";
-                            
-                            await showParcelSizeSelectorModal(context, currentSize, (selected) {
+                                : "Choose a size",
+                            icon: LucideIcons.ruler,
+                            isFilled: false,
+                            alignIconStart: true,
+                            borderRadius: 10,
+                            height: 50,
+                            endIcon: Icons.expand_more,
+                            bordercolerput: sizeHasError.value
+                            ? Colors.red
+                            : theme.colorScheme.primary.withAlpha(77),
+                            onTap: () async {
+                              FocusScope.of(context).unfocus(); // ✅ Ferme le clavier
+                              // Utiliser la valeur actuelle de selectedSize comme référence
+                              final currentSize = selectedSize.value.isNotEmpty 
+                                  ? selectedSize.value 
+                                  : controller.currentParcel.value?.size ?? "";
                               
-                              controller.updateField('size', selected);
-                              // CORRECTION: Mettre à jour selectedSize.value ici pour maintenir la cohérence
-                              selectedSize.value = selected;
-                            });
-                          },
-                          outlined: true,
-                        )
-                    ),
-
-                    const SizedBox(height: 24),
-                    sectionTitle(context, "Weight"),
-                    _openWeightModal(context),
-
-                    const SizedBox(height: 32),
-                    sectionTitle(context, "Additional info"),
-                    CustomTextField(
-                      controller: descriptionController,
-                      hintText: "Ex: The longest box is 2m15, the heaviest is a sofa",
-                      labelText: "infos",
-                      onSubmitted: (val) => controller.updateField('description', val),
-                      maxLines: 6,
-                      borderRadius: 10,
-                      isTransparent: true,
-                      borderColor: theme.colorScheme.primary.withAlpha(77),
-                    ),
-
-                    const SizedBox(height: 32),
-                    MyButton(
-                      onTap: () {
-                        if (_validateAllFields()) {
-                          // Save all data (weight is already saved in modal)
-                          controller.updateField('title', titleController.text.trim());
-                          controller.updateField('description', descriptionController.text.trim());
-                          controller.updateField('quantity', int.tryParse(quantityController.text.trim()) ?? 1);
-                          controller.calculateEstimatePrice();
-                          
-                          // ✅ NOUVEAU : SOIT/SOIT exclusif
-                          if (useExactDimensions.value) {
-                            // Mode dimensions exactes : dimensions réelles + size = vide/null
-                            // Les dimensions sont déjà sauvegardées dans _validateAndSaveDimensions()
-                            controller.updateField('size', ''); // ← Vider la taille
-                          } else {
-                            // Mode tailles prédéfinies : taille + dimensions = 0
-                            controller.updateField('size', selectedSize.value);
-                            controller.updateField('dimensions', {'length': 0, 'width': 0, 'height': 0});
+                              await showParcelSizeSelectorModal(context, currentSize, (selected) {
+                                
+                                controller.updateField('size', selected);
+                                // CORRECTION: Mettre à jour selectedSize.value ici pour maintenir la cohérence
+                                selectedSize.value = selected;
+                              });
+                            },
+                            outlined: true,
+                          )
+                      ),
+      
+                      const SizedBox(height: 24),
+                      sectionTitle(context, "Weight"),
+                      _openWeightModal(context),
+      
+                      const SizedBox(height: 32),
+                      sectionTitle(context, "Additional info"),
+                      CustomTextField(
+                        controller: descriptionController,
+                        hintText: "Ex: The longest box is 2m15, the heaviest is a sofa",
+                        labelText: "infos",
+                        onSubmitted: (val) => controller.updateField('description', val),
+                        maxLines: 6,
+                        borderRadius: 10,
+                        isTransparent: true,
+                        borderColor: theme.colorScheme.primary.withAlpha(77),
+                      ),
+      
+                      const SizedBox(height: 32),
+                      MyButton(
+                        onTap: () {
+                          if (_validateAllFields()) {
+                            // Save all data (weight is already saved in modal)
+                            controller.updateField('title', titleController.text.trim());
+                            controller.updateField('description', descriptionController.text.trim());
+                            controller.updateField('quantity', int.tryParse(quantityController.text.trim()) ?? 1);
+                            controller.calculateEstimatePrice();
+                            
+                            // ✅ NOUVEAU : SOIT/SOIT exclusif
+                            if (useExactDimensions.value) {
+                              // Mode dimensions exactes : dimensions réelles + size = vide/null
+                              // Les dimensions sont déjà sauvegardées dans _validateAndSaveDimensions()
+                              controller.updateField('size', ''); // ← Vider la taille
+                            } else {
+                              // Mode tailles prédéfinies : taille + dimensions = 0
+                              controller.updateField('size', selectedSize.value);
+                              controller.updateField('dimensions', {'length': 0, 'width': 0, 'height': 0});
+                            }
+                            controller.nextStep();
                           }
-                          controller.nextStep();
-                        }
-                      },
-                      text: "Next step",
-                      height: 50,
-                      width: double.infinity,
-                      borderRadius: 30,
-                    ),
-                    const SizedBox(height: 80),
-                  ],
+                        },
+                        text: "Next step",
+                        height: 50,
+                        width: double.infinity,
+                        borderRadius: 30,
+                      ),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          )
-        ],
+            )
+          ],
+        ),
       ),
     );
   }
@@ -690,16 +696,19 @@ bool _validateAllFields() {
   
   // Size validation if selection mode
 // ✅ NOUVEAU : Validation selon le mode choisi SANS custom
-if (useExactDimensions.value) {
-  // Mode dimensions exactes : valider les dimensions ET la taille
-  if (!_validateAndSaveDimensions()) isValid = false;
-  sizeHasError.value = selectedSize.value.isEmpty;
-  if (sizeHasError.value) isValid = false;
-} else {
-  // Mode tailles prédéfinies : valider seulement la taille
-  sizeHasError.value = selectedSize.value.isEmpty;
-  if (sizeHasError.value) isValid = false;
-}
+ // ✅ CORRECTION : Validation selon le mode choisi (EXCLUSIF)
+  if (useExactDimensions.value) {
+    // Mode dimensions exactes : valider SEULEMENT les dimensions
+    if (!_validateAndSaveDimensions()) isValid = false;
+    // ❌ NE PAS valider la taille en mode dimensions exactes
+  } else {
+    // Mode tailles prédéfinies : valider SEULEMENT la taille
+    sizeHasError.value = selectedSize.value.isEmpty;
+    if (sizeHasError.value) {
+      UIMessageManager.validationError("Please choose a size");
+      isValid = false;
+    }
+  }
   
   if (!isValid) {
   UIMessageManager.validationError("Please fill in all required fields");
@@ -843,7 +852,8 @@ Future<void> showParcelSizeSelectorModal(BuildContext context, String currentVal
 
 Future<void> _showImageSourceModal() async {
   // ✅ Vérifier la limite avant d'ouvrir le modal
-  final currentPhotos = controller.currentParcel.value?.photos ?? [];
+  //final currentPhotos = controller.currentParcel.value?.photos ?? [];
+  final currentPhotos = controller.photosList;
   if (currentPhotos.length >= MAX_PHOTOS) {
   UIMessageExtensions.photoLimitReached(controller.maxPhotos);
     return;
@@ -928,7 +938,8 @@ Future<void> _showImageSourceModal() async {
 Future<void> _pickImage(ImageSource source) async {
   try {
     // ✅ Vérifier la limite avant de prendre la photo
-    final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    //final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    final currentPhotos = controller.photosList;
     if (currentPhotos.length >= MAX_PHOTOS) {
       UIMessageExtensions.photoLimitReached(controller.maxPhotos);
       return;
@@ -966,7 +977,8 @@ Future<void> _pickImage(ImageSource source) async {
 Future<void> _pickMultipleImages() async {
   try {
     // ✅ Calculer combien de photos on peut encore ajouter
-    final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    //final currentPhotos = controller.currentParcel.value?.photos ?? [];
+    final currentPhotos = controller.photosList;
     final remainingSlots = MAX_PHOTOS - currentPhotos.length;
     
     if (remainingSlots <= 0) {
