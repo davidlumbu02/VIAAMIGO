@@ -11,6 +11,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
+import 'package:viaamigo/shared/collections/parcel/services/firebase_storage_service.dart';
 import 'package:viaamigo/shared/collections/parcel/services/parcel_service.dart';
 
 
@@ -64,7 +65,9 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   Timer? _localSaveTimer;                     // Timer pour auto-save local
   static const String LOCAL_DRAFT_KEY = 'viaamigo_local_draft';
 
-  
+    // Nouvelle propriété pour tracker l'upload
+  final RxBool _isUploadingPhotos = false.obs;
+  bool get isUploadingPhotos => _isUploadingPhotos.value;
 
   // AMÉLIORATION: Observables pour la liste des photos
   RxList<String> photosList = <String>[].obs;
@@ -343,33 +346,6 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
   currentParcel.value!.validate();
   validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
   }
-  
-  // Sauvegarder le colis (en mode brouillon)
-  /*Future<void> saveParcel() async {
-    if (currentParcel.value == null) return;
-    
-    isSaving.value = true;
-    
-    try {
-      // Mettre à jour les timestamps et l'étape
-      currentParcel.value!.last_edited = DateTime.now();
-      currentParcel.value!.navigation_step = currentStep.value;
-      
-      // Calculer le pourcentage de complétion
-      currentParcel.value!.completion_percentage = 
-          currentParcel.value!.calculateCompletionPercentage();
-      
-       // Calculer les frais de manutention
-    computeTotalHandlingFee();
-      
-      await _parcelsService.updateParcel(currentParcel.value!);
-      validateFields(); // AMÉLIORATION: Revalider après sauvegarde
-    } catch (e) {
-      errorMessage.value = 'Erreur lors de la sauvegarde: ${e.toString()}';
-    } finally {
-      isSaving.value = false;
-    }
-  }*/
     // ✅ MODIFIER votre méthode saveParcel existante - AJOUTER AU DÉBUT :
   Future<void> saveParcel() async {
     if (currentParcel.value == null) return;
@@ -399,94 +375,42 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
       isSaving.value = false;
     }
   }
-  // ✅ NOUVELLE MÉTHODE : Reset complet après publication
-/*Future<void> _resetControllerAfterPublication() async {
-  print('🧹 Nettoyage complet du contrôleur après publication...');
+  // Publier le colis (passer de brouillon à publié)
+Future<bool> publishParcel() async {
+  if (currentParcel.value == null) return false;
+  
+  // 🔒 PROTECTION : Si en mode local, faire transition ET s'arrêter
+  if (isLocalMode.value) {
+    print('🔄 Transition vers Firestore pour publication...');
+    await _transitionToFirestore();
+    
+    // ✅ CRITIQUE : S'ARRÊTER ICI après transition réussie
+    try {
+      await _clearLocalDraft();
+      await _forceCompleteReset();
+      print('✅ Publication terminée via transition');
+      return true;
+    } catch (resetError) {
+      print('⚠️ Erreur lors du reset: $resetError');
+      return true; // Publication réussie malgré erreur reset
+    }
+  }
+  
+  // ✅ LOGIQUE EXISTANTE pour parcels déjà en Firestore
+  if (!currentParcel.value!.validate()) {
+    validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
+    errorMessage.value = 'Erreurs de validation:\n${validationErrorsList.join('\n')}';
+    return false;
+  }
+  
+  isSaving.value = true;
   
   try {
-    // 1. Arrêter tous les timers
-    _stopLocalAutoSave();
+    await _parcelsService.publishParcel(currentParcel.value!);
     
-    // 2. Reset des données principales
-    currentParcel.value = null;
-    currentStep.value = 0;
+    currentParcel.value!.draft = false;
+    currentParcel.value!.status = 'pending';
     
-    // 3. Reset des flags de navigation
-    _justNavigatedToWizard.value = false;
-    _modalAlreadyShown.value = false;
-    
-    // 4. Reset du mode local
-    isLocalMode.value = true;  // Retour au mode local par défaut
-    localDraftId.value = '';
-    
-    // 5. Reset des observables de validation
-    titleValid.value = false;
-    descriptionValid.value = false;
-    weightValid.value = false;
-    originValid.value = false;
-    destinationValid.value = false;
-    recipientValid.value = false;
-    
-    // 6. Reset des observables d'assurance et prix
-    isInsured.value = false;
-    insuranceLevel.value = 'none';
-    declaredValue.value = 0.0;
-    insuranceFee.value = 0.0;
-    platformFee.value = 0.0;
-    finalPrice.value = 0.0;
-    
-    // 7. Reset des observables de paiement
-    paymentStatus.value = 'unpaid';
-    paymentId.value = '';
-    paidAt.value = null;
-    
-    // 8. Reset des listes
-    photosList.clear();
-    primaryPhoto.value = '';
-    validationErrorsList.clear();
-    
-    // 9. Reset des flags d'état
-    isLoading.value = false;
-    isSaving.value = false;
-    autoSave.value = true;
-    errorMessage.value = '';
-    
-    // 10. Nettoyer le stockage local
-    await _clearLocalDraft();
-    
-    print('✅ Nettoyage complet terminé');
-  } catch (e) {
-    print('❌ Erreur lors du nettoyage: $e');
-  }
-}*/
-  // Publier le colis (passer de brouillon à publié)
-    Future<bool> publishParcel() async {
-    if (currentParcel.value == null) return false;
-    
-    // ✅ AJOUTER CETTE LOGIQUE AU DÉBUT :
-    if (isLocalMode.value) {
-      print('🔄 Transition vers Firestore pour publication...');
-      print(isLocalMode.value ? 'Mode local' : 'Mode Firestore');
-      await _transitionToFirestore();
-    }
-    
-    // ✅ GARDER EXACTEMENT VOTRE LOGIQUE EXISTANTE :
-    if (!currentParcel.value!.validate()) {
-      validationErrorsList.value = List<String>.from(currentParcel.value!.validationErrors);
-      errorMessage.value = 'Erreurs de validation:\n${validationErrorsList.join('\n')}';
-      return false;
-    }
-    
-    isSaving.value = true;
-    
-    try {
-      await _parcelsService.publishParcel(currentParcel.value!);
-      
-      currentParcel.value!.draft = false;
-      currentParcel.value!.status = 'pending';
-      
-      
-    // ✅ Reset UNIQUEMENT après succès confirmé
     try {
       await _clearLocalDraft();
       await _forceCompleteReset();
@@ -494,14 +418,14 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
     } catch (resetError) {
       print('⚠️ Erreur lors du reset (publication réussie): $resetError');
     }
-      return true;
-    } catch (e) {
-      errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
-      return false;
-    } finally {
-      isSaving.value = false;
-    }
+    return true;
+  } catch (e) {
+    errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
+    return false;
+  } finally {
+    isSaving.value = false;
   }
+}
   /*Future<bool> publishParcel() async {
     if (currentParcel.value == null) return false;
     
@@ -597,24 +521,11 @@ final Rx<DateTime?> paidAt = Rx<DateTime?>(null);
           insurance_level: value,
           isInsured: value != 'none'
         );
-       /* if (currentParcel.value!.isInsured) {
-        double insuranceFee = currentParcel.value!.calculateInsurancePremium();
-        currentParcel.value = currentParcel.value!.copyWith(insurance_fee: insuranceFee);
-      } else {
-        currentParcel.value = currentParcel.value!.copyWith(insurance_fee: 0.0);
-      }*/
+
         break;
       case 'declared_value':
         currentParcel.value = currentParcel.value!.copyWith(declared_value: value);
-        // ✅ NOUVEAU : Mise à jour automatique du niveau d'assurance
-      /*if (currentParcel.value!.isInsured) {
-        currentParcel.value!.updateInsuranceLevel();
-        // Forcer la mise à jour du modèle
-        currentParcel.value = currentParcel.value!.copyWith(
-          insurance_level: currentParcel.value!.insurance_level,
-          insurance_fee: currentParcel.value!.insurance_fee
-        );
-      }*/
+ 
         break;
           // ✅ NOUVEAUX CHAMPS D'ASSURANCE :
     case 'isInsured':
@@ -681,17 +592,12 @@ case 'paidAt':
 
     }
     syncObservables();
-    // Sauvegarder automatiquement après modifications si activé
-   /* if (autoSave.value) {
-      await saveParcel();
-    }*/
+   
         // ✅ MODIFIER SEULEMENT CETTE PARTIE À LA FIN :
     if (isLocalMode.value) {
-      // Mode local : vérifier si on doit passer en Firestore
-      if (_shouldTransitionToFirestore()) {
-        await _transitionToFirestore();
-      }
-      // Sinon, l'auto-save local se charge de tout automatiquement
+      //
+          await _saveLocalDraft(); // Sauvegarde locale uniquement
+    // ✅ SUPPRIMÉ : Plus de _shouldTransitionToFirestore() ni _transitionToFiresto
     } else {
       // Mode Firestore : VOTRE LOGIQUE EXISTANTE
       if (autoSave.value) {
@@ -1182,31 +1088,74 @@ bool validateInsuranceInfo() {
     return currentParcel.value!.title.isNotEmpty &&
            currentParcel.value!.weight > 0 &&
            currentParcel.value!.originAddress.isNotEmpty &&
-           currentParcel.value!.destinationAddress.isNotEmpty;
+           currentParcel.value!.destinationAddress.isNotEmpty&&
+           currentParcel.value!.recipientName.isNotEmpty && // ← CONDITION SUPPLÉMENTAIRE
+         currentParcel.value!.recipientPhone.isNotEmpty;  // ← CONDITION SUPPLÉMENTAIRE
   }
 
-  Future<void>    _transitionToFirestore() async {
-    if (!isLocalMode.value || currentParcel.value == null) return;
+Future<void> _transitionToFirestore() async {
+  if (!isLocalMode.value || currentParcel.value == null) return;
+  
+  try {
+    print('🔄 Transition vers Firestore avec upload des photos...');
     
-    try {
-      print('🔄 Création du parcel dans Firestore...');
-      final parcelId = await _parcelsService.createEmptyParcel(currentParcel.value!);
+    // ✅ UPLOAD PHOTOS VERS FIREBASE AVANT CRÉATION FIRESTORE
+    if (currentParcel.value!.photos.isNotEmpty) {
+      _isUploadingPhotos.value = true;
       
-      currentParcel.value = currentParcel.value!.copyWith(id: parcelId);
+      print('📸 Upload de ${currentParcel.value!.photos.length} photos vers Firebase Storage...');
       
-      isLocalMode.value = false;
-      autoSave.value = true;
-      _stopLocalAutoSave();
-      
-      await saveParcel();
-      await _clearLocalDraft();
-      
-      print('✅ Transition réussie vers Firestore');
-    } catch (e) {
-      print('❌ Erreur transition: $e');
-    }
-  }
+      // Utiliser votre service qui appelle FirebaseStorageService
+      final firebaseUrls = await FirebaseStorageService.uploadParcelPhotos(
+        localPhotoPaths: currentParcel.value!.photos,
+        parcelId: localDraftId.value,
+      );
 
+      
+      // ✅ REMPLACER les chemins locaux par URLs Firebase
+      currentParcel.value = currentParcel.value!.copyWith(photos: firebaseUrls);
+      
+      // Mettre à jour la photo principale
+      if (currentParcel.value!.primaryPhotoUrl != null && 
+          !currentParcel.value!.primaryPhotoUrl!.startsWith('https://')) {
+        currentParcel.value = currentParcel.value!.copyWith(
+          primaryPhotoUrl: firebaseUrls.isNotEmpty ? firebaseUrls.first : null
+        );
+      }
+      
+      // Synchroniser les observables
+      photosList.value = firebaseUrls;
+      primaryPhoto.value = currentParcel.value!.primaryPhotoUrl ?? '';
+      
+      _isUploadingPhotos.value = false;
+      print('✅ Photos uploadées vers Firebase Storage');
+    }
+    
+    // ✅ CRÉER PARCEL DANS FIRESTORE AVEC URLs Firebase
+// ✅ CRÉER ET PUBLIER EN UNE FOIS
+    print('🔄 Création du parcel dans Firestore...');
+    final parcelId = await _parcelsService.createEmptyParcel(currentParcel.value!);
+    currentParcel.value = currentParcel.value!.copyWith(
+      id: parcelId,
+      draft: false,        // ✅ MARQUER COMME PUBLIÉ
+      status: 'pending'    // ✅ STATUT PUBLIÉ
+    );
+
+    // ✅ MISE À JOUR DIRECTE pour publication
+    await _parcelsService.updateParcel(currentParcel.value!);
+
+    // Finaliser la transition
+    isLocalMode.value = false;
+    autoSave.value = true;
+    _stopLocalAutoSave();
+
+    print('✅ Transition complète - Parcel créé ET publié en une fois');
+  } catch (e) {
+    _isUploadingPhotos.value = false;
+    print('❌ Erreur transition: $e');
+    rethrow;
+  }
+}
   void _startLocalAutoSave() {
     _localSaveTimer?.cancel();
     _localSaveTimer = Timer.periodic(Duration(seconds: 5), (timer) {
@@ -1314,8 +1263,59 @@ Future<void> _forceCompleteReset() async {
       print('❌ Erreur nettoyage: $e');
     }
   }
-
-  Map<String, dynamic> _parcelToLocalJson(ParcelModel parcel) {
+Map<String, dynamic> _parcelToLocalJson(ParcelModel parcel) {
+  final json = parcel.toFirestore();
+  
+  // ✅ FONCTION RÉCURSIVE pour convertir TOUS les Timestamps
+  Map<String, dynamic> convertTimestamps(Map<String, dynamic> data) {
+    final converted = <String, dynamic>{};
+    
+    for (var entry in data.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      if (value is Timestamp) {
+        // ✅ Timestamp → String ISO
+        converted[key] = value.toDate().toIso8601String();
+      } else if (value is Map<String, dynamic>) {
+        // ✅ Récursion pour Maps imbriquées
+        converted[key] = convertTimestamps(value);
+      } else if (value is List) {
+        // ✅ Traiter les listes
+        converted[key] = value.map((item) {
+          if (item is Map<String, dynamic>) {
+            return convertTimestamps(item);
+          } else if (item is Timestamp) {
+            return item.toDate().toIso8601String();
+          }
+          return item;
+        }).toList();
+      } else {
+        // ✅ Autres types : copier tel quel
+        converted[key] = value;
+      }
+    }
+    return converted;
+  }
+  
+  // ✅ Appliquer la conversion
+  final cleanedJson = convertTimestamps(json);
+  
+  // ✅ Gérer les coordonnées GPS
+  if (parcel.origin != null) {
+    cleanedJson['origin_lat'] = parcel.origin!.latitude;
+    cleanedJson['origin_lng'] = parcel.origin!.longitude;
+    cleanedJson.remove('origin');
+  }
+  if (parcel.destination != null) {
+    cleanedJson['destination_lat'] = parcel.destination!.latitude;
+    cleanedJson['destination_lng'] = parcel.destination!.longitude;
+    cleanedJson.remove('destination');
+  }
+  
+  return cleanedJson;
+}
+  /*Map<String, dynamic> _parcelToLocalJson(ParcelModel parcel) {
     final json = parcel.toFirestore();
     
     // Gérer les types complexes
@@ -1342,7 +1342,7 @@ Future<void> _forceCompleteReset() async {
     }
   }
     return json;
-  }
+  }*/
   /// Vérifie s'il existe un brouillon local récent
 Future<bool> hasLocalDraft() async {
   final draft = await _loadLocalDraft();
@@ -1493,7 +1493,7 @@ Future<void> clearLocalDraftPublic() async {
   await _clearLocalDraft();
 }
 
-  ParcelModel _parcelFromLocalJson(Map<String, dynamic> json) {
+  /*ParcelModel _parcelFromLocalJson(Map<String, dynamic> json) {
     // Reconstruire les GeoFirePoint
     if (json['origin_lat'] != null && json['origin_lng'] != null) {
       json['origin'] = GeoPoint(json['origin_lat'], json['origin_lng']);
@@ -1505,8 +1505,74 @@ Future<void> clearLocalDraftPublic() async {
     // Utiliser un mock DocumentSnapshot
     final mockDoc = _MockDocumentSnapshot(json, json['id'] ?? '');
     return ParcelModel.fromFirestore(mockDoc as DocumentSnapshot<Object?>);
+  }*/
+ParcelModel _parcelFromLocalJson(Map<String, dynamic> json) {
+  // ✅ FONCTION RÉCURSIVE pour reconvertir les Strings en Timestamps
+  Map<String, dynamic> restoreTimestamps(Map<String, dynamic> data) {
+    final restored = <String, dynamic>{};
+    
+    for (var entry in data.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      if (value is String && _isTimestampField(key)) {
+        try {
+          // ✅ String ISO → Timestamp
+          restored[key] = Timestamp.fromDate(DateTime.parse(value));
+        } catch (e) {
+          print("⚠️ Erreur conversion Timestamp pour $key: $e");
+          restored[key] = value; // Garder la valeur originale en cas d'erreur
+        }
+      } else if (value is Map<String, dynamic>) {
+        // ✅ Récursion pour Maps imbriquées
+        restored[key] = restoreTimestamps(value);
+      } else if (value is List) {
+        // ✅ Traiter les listes
+        restored[key] = value.map((item) {
+          if (item is Map<String, dynamic>) {
+            return restoreTimestamps(item);
+          }
+          return item;
+        }).toList();
+      } else {
+        // ✅ Autres types : copier tel quel
+        restored[key] = value;
+      }
+    }
+    return restored;
   }
+  
+  // ✅ Appliquer la restauration
+  final restoredJson = restoreTimestamps(json);
+  
+  // ✅ Reconstruire les GeoFirePoint
+  if (restoredJson['origin_lat'] != null && restoredJson['origin_lng'] != null) {
+    restoredJson['origin'] = GeoPoint(restoredJson['origin_lat'], restoredJson['origin_lng']);
+    restoredJson.remove('origin_lat');
+    restoredJson.remove('origin_lng');
+  }
+  if (restoredJson['destination_lat'] != null && restoredJson['destination_lng'] != null) {
+    restoredJson['destination'] = GeoPoint(restoredJson['destination_lat'], restoredJson['destination_lng']);
+    restoredJson.remove('destination_lat');
+    restoredJson.remove('destination_lng');
+  }
+  
+  final mockDoc = _MockDocumentSnapshot(restoredJson, restoredJson['id'] ?? '');
+  return ParcelModel.fromFirestore(mockDoc as DocumentSnapshot<Object?>);
+}
 
+// ✅ MÉTHODE UTILITAIRE : Identifier les champs Timestamp
+bool _isTimestampField(String fieldName) {
+  const timestampFields = [
+    'createdAt', 'last_edited', 'paidAt', 'start_time', 'end_time',
+    'pickup_start', 'pickup_end', 'delivery_start', 'delivery_end'
+  ];
+  
+  return timestampFields.contains(fieldName) || 
+         fieldName.contains('time') || 
+         fieldName.contains('_at') ||
+         fieldName.contains('Time');
+}
   @override
   void onClose() {
     _stopLocalAutoSave();
@@ -1524,18 +1590,3 @@ class _MockDocumentSnapshot {
   Map<String, dynamic> data() => _data;
 }
 
-/// Calcule le prix total incluant tous les frais
-/*
-double calculateTotalWithInsurance() {
-  if (currentParcel.value == null) return 0.0;
-  
-  return currentParcel.value!.calculateTotalPrice();
-}
-*/
-/// Obtient le détail des coûts avec assurance
-/*
-Map<String, double> getCostBreakdownWithInsurance() {
-  if (currentParcel.value == null) return {};
-  
-  return currentParcel.value!.getCostBreakdown();
-}*/

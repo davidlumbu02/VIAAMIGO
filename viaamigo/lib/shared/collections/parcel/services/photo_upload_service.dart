@@ -43,7 +43,83 @@ class PhotoUploadService {
       throw Exception('Erreur upload photo: $e');
     }
   }
-  
+    /// ✅ MÉTHODE MANQUANTE : uploadForTransition
+  static Future<List<String>> uploadForTransition(
+    List<String> localPaths, 
+    String parcelId,
+    {Function(int, int)? onProgress}
+  ) async {
+    if (localPaths.isEmpty) return [];
+    
+    List<String> firebaseUrls = [];
+    
+    for (int i = 0; i < localPaths.length; i++) {
+      String localPath = localPaths[i];
+      
+      try {
+        // Si c'est déjà une URL Firebase, l'ignorer
+        if (localPath.startsWith('https://firebasestorage.googleapis.com')) {
+          firebaseUrls.add(localPath);
+          onProgress?.call(i + 1, localPaths.length);
+          continue;
+        }
+        
+        // Upload avec votre méthode existante
+        final firebaseUrl = await uploadParcelPhoto(localPath, parcelId);
+        firebaseUrls.add(firebaseUrl);
+        onProgress?.call(i + 1, localPaths.length);
+        
+      } catch (e) {
+        print('❌ Erreur upload $localPath: $e');
+        // En cas d'échec, garder le chemin local
+        firebaseUrls.add(localPath);
+        onProgress?.call(i + 1, localPaths.length);
+      }
+    }
+    
+    return firebaseUrls;
+  }
+   /// ✅ NOUVELLE MÉTHODE : Upload avec gestion locale/Firebase et nettoyage
+  static Future<List<String>> uploadParcelPhotosWithCleanup(
+    String parcelId, 
+    List<String> localPaths
+  ) async {
+    if (localPaths.isEmpty) return [];
+    
+    List<String> firebaseUrls = [];
+    
+    for (String localPath in localPaths) {
+      try {
+        // Vérifier si c'est déjà une URL Firebase
+        if (localPath.startsWith('https://firebasestorage.googleapis.com')) {
+          firebaseUrls.add(localPath);
+          continue;
+        }
+        
+        // Upload vers Firebase Storage
+        final firebaseUrl = await uploadParcelPhoto(localPath, parcelId);
+        firebaseUrls.add(firebaseUrl);
+        
+        // Supprimer le fichier local après upload réussi
+        try {
+          final File file = File(localPath);
+          if (file.existsSync()) {
+            await file.delete();
+            print('🗑️ Fichier local supprimé: $localPath');
+          }
+        } catch (e) {
+          print('⚠️ Impossible de supprimer le fichier local: $e');
+        }
+        
+      } catch (e) {
+        print('❌ Erreur upload photo $localPath: $e');
+        // En cas d'échec, garder le chemin local
+        firebaseUrls.add(localPath);
+      }
+    }
+    
+    return firebaseUrls;
+  }
   /// Upload multiple photos en parallèle
   static Future<List<String>> uploadMultipleParcelPhotos(
     List<String> localPaths, 

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.dart';
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
+import 'package:viaamigo/shared/collections/parcel/services/firebase_storage_service.dart';
 import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
 import 'package:viaamigo/shared/collections/parcel/services/photo_upload_service.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // ✅ AJOUT CRITIQUE
@@ -67,7 +68,7 @@ class ParcelsService {
         } else if (value == null) {
           print('   ⚪ $key: null');
         } else {
-          print('   📝 $key: ${value.toString().length > 50 ? value.toString().substring(0, 50) + "..." : value} (${value.runtimeType})');
+          print('   📝 $key: ${value.toString().length > 50 ? "${value.toString().substring(0, 50)}..." : value} (${value.runtimeType})');
         }
       });
      // 🚀 TENTATIVE DE CRÉATION FIRESTORE
@@ -114,19 +115,29 @@ class ParcelsService {
     }
   }
   // ✅ NOUVELLE MÉTHODE : Upload photos avec URLs réelles
-  Future<List<String>> uploadParcelPhotos(List<String> localPaths, String parcelId) async {
+ Future<List<String>> uploadParcelPhotos(List<String> localPaths, String parcelId) async {
     try {
-      return await PhotoUploadService.uploadMultipleParcelPhotos(
-        localPaths, 
-        parcelId,
-        onProgress: (current, total) {
-          print('Upload photo $current/$total');
-        },
-      );
+      return await FirebaseStorageService.uploadParcelPhotos(
+      localPhotoPaths: localPaths,
+      parcelId: parcelId,
+    );
     } catch (e) {
       throw Exception('Erreur upload photos: $e');
     }
+  } /*
+  Future<List<String>> uploadParcelPhotos(List<String> localPaths, String parcelId) async {
+  try {
+    return await PhotoUploadService.uploadForTransition(
+      localPaths, 
+      parcelId,
+      onProgress: (current, total) {
+        print('📸 Upload photo $current/$total');
+      },
+    );
+  } catch (e) {
+    throw Exception('Erreur upload photos: $e');
   }
+}*/
   
   // ✅ NOUVELLE MÉTHODE : Géocodage d'adresse
   Future<GeocodingResult?> geocodeAddress(String address) async {

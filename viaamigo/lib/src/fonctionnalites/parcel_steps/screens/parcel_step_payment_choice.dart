@@ -23,7 +23,11 @@ class ParcelStepPaymentChoiceState extends State<ParcelStepPaymentChoice> {
   // États de sélection
   final RxString selectedPaymentChoice = ''.obs;
   final RxBool isProcessing = false.obs;
-  
+
+    // 🔒 NOUVELLE PROTECTION ANTI-DOUBLE PUBLICATION
+  final RxBool hasPublished = false.obs;
+  String? publishedParcelId;
+    bool _hasProcessed = false;  // ✅ NOUVEAU
   // Options de paiement
   final List<PaymentChoiceOption> paymentOptions = [
     PaymentChoiceOption(
@@ -60,7 +64,14 @@ class ParcelStepPaymentChoiceState extends State<ParcelStepPaymentChoice> {
       warning: 'Payment will be required within 2 hours when a driver accepts',
     ),
   ];
-
+  @override
+  void dispose() {
+    // 🧹 Reset protection
+    _hasProcessed = false;
+    selectedPaymentChoice.close();
+    isProcessing.close();
+    super.dispose();
+  }
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -418,49 +429,150 @@ class ParcelStepPaymentChoiceState extends State<ParcelStepPaymentChoice> {
   }
 
   Widget _buildActionButtons() {
-    return Obx(() {
-      final hasSelection = selectedPaymentChoice.value.isNotEmpty;
-      final selectedOption = paymentOptions.firstWhereOrNull(
-        (option) => option.id == selectedPaymentChoice.value
-      );
-      
-      return Column(
-        children: [
-          // Bouton principal
-          MyButton(
-            onTap: hasSelection ? _proceedWithSelectedOption : null,
-            text: selectedOption?.id == 'pay_now' 
-              ? "Proceed to payment"
-              : "Publish parcel",
-            height: 56,
-            width: double.infinity,
-            borderRadius: 30,
-            backgroundColor: hasSelection ? null : Colors.grey,
-            child: isProcessing.value 
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                )
-              : null,
+  return Obx(() {
+    final hasSelection = selectedPaymentChoice.value.isNotEmpty;
+    final selectedOption = paymentOptions.firstWhereOrNull(
+      (option) => option.id == selectedPaymentChoice.value
+    );
+    
+    final isDisabled = !hasSelection || isProcessing.value || hasPublished.value;
+    
+    return Column(
+      children: [
+        // ✅ BOUTON AVEC ANIMATION DE CHARGEMENT ÉLÉGANTE
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          height: 56,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            color: isDisabled ? Colors.grey : Theme.of(context).colorScheme.primary,
           ),
-          
-          const SizedBox(height: 12),
-          
-          // Bouton retour
-          TextButton(
-            onPressed: () => Get.find<NavigationController>().goBack(),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(30),
+              onTap: isDisabled ? null : _proceedWithSelectedOption,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // ✅ ANIMATION D'APPARITION DU SPINNER
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 300),
+                      child: isProcessing.value
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            key: const ValueKey('loading'),
+                            children: [
+                              const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                _getLoadingText(selectedOption),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          )
+                        : Text(
+                            _getButtonText(selectedOption),
+                            key: const ValueKey('normal'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 12),
+        
+        // Bouton retour avec animation de désactivation
+        AnimatedOpacity(
+          duration: const Duration(milliseconds: 300),
+          opacity: isProcessing.value ? 0.5 : 1.0,
+          child: TextButton(
+            onPressed: isProcessing.value ? null : () => Get.find<NavigationController>().goBack(),
             child: const Text("Back to previous step"),
           ),
-        ],
-      );
-    });
+        ),
+      ],
+    );
+  });
+}
+
+// ✅ MÉTHODES UTILITAIRES SIMPLIFIÉES
+String _getButtonText(PaymentChoiceOption? selectedOption) {
+  return selectedOption?.id == 'pay_now' 
+    ? "Proceed to payment"
+    : "Publish parcel";
+}
+
+String _getLoadingText(PaymentChoiceOption? selectedOption) {
+  if (selectedOption?.id == 'pay_now') {
+    return "Redirecting...";
+  } else {
+    return "Publishing...";
+  }
+}
+void _proceedWithSelectedOption() async {
+    if (selectedPaymentChoice.value.isEmpty) return;
+    
+    // 🚨 PROTECTION #1 - Éviter double traitement
+    if (_hasProcessed) {
+      print('🚫 Déjà traité, ignoré');
+      return;
+    }
+    
+    // 🚨 PROTECTION #2 - GetX isProcessing
+    if (isProcessing.value) {
+      print('🚫 Traitement en cours, ignoré');
+      return;
+    }
+    
+    // 🔒 MARQUER COMME TRAITÉ
+    _hasProcessed = true;
+    isProcessing.value = true;
+    
+    try {
+      // Sauvegarder le choix de paiement
+      await controller.updateField('payment_method', selectedPaymentChoice.value);
+      await controller.updateField('payment_status', 
+        selectedPaymentChoice.value == 'pay_now' ? 'pending' : 'deferred');
+      
+      if (selectedPaymentChoice.value == 'pay_now') {
+        _goToPaymentPage();
+      } else {
+        await _publishParcelWithDeferredPayment();
+      }
+      
+    } catch (e) {
+      // 🔒 RÉINITIALISER EN CAS D'ERREUR SEULEMENT
+      _hasProcessed = false;
+      UIMessageManager.error("An error occurred: ${e.toString()}");
+    } finally {
+      isProcessing.value = false;
+    }
   }
 
-  void _proceedWithSelectedOption() async {
+  /*void _proceedWithSelectedOption() async {
     if (selectedPaymentChoice.value.isEmpty) return;
     
     isProcessing.value = true;
@@ -484,7 +596,7 @@ class ParcelStepPaymentChoiceState extends State<ParcelStepPaymentChoice> {
     } finally {
       isProcessing.value = false;
     }
-  }
+  }*/
 
   void _goToPaymentPage() {
     // TODO: Implémenter la navigation vers la page de paiement
