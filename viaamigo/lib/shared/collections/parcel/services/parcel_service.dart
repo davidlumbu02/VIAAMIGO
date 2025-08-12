@@ -4,7 +4,7 @@ import 'package:viaamigo/shared/collections/parcel/model/parcel_dimension_model.
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/collections/parcel/services/firebase_storage_service.dart';
 import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.dart';
-import 'package:viaamigo/shared/collections/parcel/services/photo_upload_service.dart';
+//import 'package:viaamigo/shared/collections/parcel/services/photo_upload_service.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // ✅ AJOUT CRITIQUE
 //import 'package:viaamigo/shared/utilis/geo_utils.dart';
 

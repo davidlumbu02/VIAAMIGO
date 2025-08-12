@@ -1081,7 +1081,7 @@ bool validateInsuranceInfo() {
   bool _isRecentDraft(ParcelModel draft) {
     return DateTime.now().difference(draft.last_edited).inHours < 48;
   }
-
+/*
   bool _shouldTransitionToFirestore() {
     if (!isLocalMode.value || currentParcel.value == null) return false;
     
@@ -1091,7 +1091,7 @@ bool validateInsuranceInfo() {
            currentParcel.value!.destinationAddress.isNotEmpty&&
            currentParcel.value!.recipientName.isNotEmpty && // ← CONDITION SUPPLÉMENTAIRE
          currentParcel.value!.recipientPhone.isNotEmpty;  // ← CONDITION SUPPLÉMENTAIRE
-  }
+  }*/
 
 Future<void> _transitionToFirestore() async {
   if (!isLocalMode.value || currentParcel.value == null) return;

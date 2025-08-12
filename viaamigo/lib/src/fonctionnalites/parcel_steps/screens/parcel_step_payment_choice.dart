@@ -5,7 +5,7 @@ import 'package:viaamigo/shared/collections/parcel/controller/parcel_controller.
 import 'package:viaamigo/shared/collections/parcel/model/parcel_model.dart';
 import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
-import 'package:viaamigo/shared/widgets/my_button.dart';
+///import 'package:viaamigo/shared/widgets/my_button.dart';
 import 'package:viaamigo/shared/controllers/navigationcontroller.dart';
 import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_step_mixim.dart';
 import 'package:viaamigo/src/utilitaires/theme/app_colors.dart';
