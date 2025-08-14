@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:viaamigo/shared/collections/trip/controller/trip_controller.dart';
 import 'package:viaamigo/shared/collections/users/controller/user_controller.dart';
 import 'package:viaamigo/shared/collections/users/subcollection/services%20and%20models/badges.dart';
 import 'package:viaamigo/shared/collections/users/subcollection/services%20and%20models/devices.dart';
@@ -109,6 +110,7 @@ Future<void> main() async {
   Get.put(UserController(), permanent: true);
   Get.put(SignupController(), permanent: true);
   Get.put(ParcelsController(), permanent: true);  // 🆕 NOUVEAU
+  Get.put(TripController(), permanent: true);
   
   // 🧭 NOUVEAU: Injection du contrôleur de navigation centralisée
   Get.put(NavigationController(), permanent: true);

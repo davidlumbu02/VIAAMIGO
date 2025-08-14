@@ -352,11 +352,11 @@ class TripController extends GetxController {
   Future<void> updateVehicleCapacity(double maxWeight, double maxVolume, int maxParcels) async {
     if (currentTrip.value == null) return;
     
-    final newCapacity = {
+    /*final newCapacity = {
       'maxWeight': maxWeight,
       'maxVolume': maxVolume,
       'maxParcels': maxParcels,
-    };
+    };*/
     
     currentTrip.value!.updateVehicleCapacity(maxWeight, maxVolume, maxParcels);
     vehicleCapacityValid.value = true;
