@@ -76,7 +76,7 @@ Widget buildHeader(BuildContext context) {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withAlpha(38),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(

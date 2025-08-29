@@ -24,6 +24,7 @@ class CustomTextField extends StatefulWidget {
   final bool enabled;                          // ✅ Ajouté
   final bool readOnly;                         // ✅ Ajouté
   final String? semanticsLabel;                // ✅ Accessibilité
+  final bool hasBorder; // ✅ Ajouté
 
   const CustomTextField({
     super.key,
@@ -50,6 +51,7 @@ class CustomTextField extends StatefulWidget {
     this.enabled = true,
     this.readOnly = false,
     this.semanticsLabel,
+    this.hasBorder = true,
   });
 
   @override
@@ -107,14 +109,16 @@ class _CustomTextFieldState extends State<CustomTextField> {
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           
           // ✅ Bordures améliorées
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(widget.borderRadius),
-            borderSide: BorderSide(
-              color: _hasError 
-                ? (widget.errorBorderColor ?? theme.colorScheme.error)
-                : (widget.borderColor ?? theme.colorScheme.outline),
-            ),
-          ),
+enabledBorder: widget.hasBorder
+    ? OutlineInputBorder(
+        borderRadius: BorderRadius.circular(widget.borderRadius),
+        borderSide: BorderSide(
+          color: _hasError 
+            ? (widget.errorBorderColor ?? theme.colorScheme.error)
+            : (widget.borderColor ?? theme.colorScheme.outline),
+        ),
+      )
+    : InputBorder.none,
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(widget.borderRadius),
             borderSide: BorderSide(

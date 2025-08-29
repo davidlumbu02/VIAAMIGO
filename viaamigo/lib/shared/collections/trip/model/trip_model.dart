@@ -40,6 +40,8 @@ class TripModel {
   
   /// Adresse textuelle du point de destination
   String destinationAddress;
+    /// Date de depart de l'annonce (si applicable)
+  DateTime? departureDate;
   
   /// Points d'arrêt intermédiaires optionnels sur le trajet
   /// Structure: [{"address": "...", "latitude": x, "longitude": y, "stopDuration": minutes}]
@@ -112,6 +114,7 @@ class TripModel {
     required this.originAddress,
     this.destination,
     required this.destinationAddress,
+    this.departureDate,
     this.waypoints,
     required this.departureTime,
     this.arrivalTime,
@@ -125,8 +128,8 @@ class TripModel {
     required this.notificationSettings,
     this.g, // ✅ AJOUT
     this.navigation_step = 0, // ✅ AJOUT
-    this.validationErrors = const [],
-  });
+    List<String>? validationErrors, 
+  }) : validationErrors = validationErrors ?? <String>[];
 
   /// Crée un modèle de trajet vide avec les valeurs minimales requises
   /// Utilisé pour initialiser un nouveau trajet en mode brouillon
@@ -137,6 +140,7 @@ class TripModel {
       status: 'available',
       originAddress: '',
       destinationAddress: '',
+      departureDate: null,
       departureTime: now.add(Duration(hours: 2)), // Départ dans 2h par défaut
       vehicleCapacity: {
         'maxWeight': 20.0, // 20kg par défaut
@@ -167,6 +171,7 @@ class TripModel {
       createdAt: now,
       updatedAt: now,
       navigation_step: 0, // ✅ AJOUT
+      validationErrors: <String>[], 
     );
   }
 
@@ -198,6 +203,7 @@ class TripModel {
       originAddress: data['originAddress'] ?? '',
       destination: destination,
       destinationAddress: data['destinationAddress'] ?? '',
+      departureDate: (data['departureDate'] as Timestamp?)?.toDate(),
       waypoints: data['waypoints'] != null 
         ? List<Map<String, dynamic>>.from(data['waypoints'])
         : null,
@@ -230,6 +236,7 @@ class TripModel {
       'originAddress': originAddress,
       'destination': destination != null ? GeoPoint(destination!.latitude, destination!.longitude) : null,
       'destinationAddress': destinationAddress,
+      'departureDate': departureDate != null ? Timestamp.fromDate(departureDate!) : null,
       'waypoints': waypoints,
       'departureTime': Timestamp.fromDate(departureTime),
       'arrivalTime': arrivalTime != null ? Timestamp.fromDate(arrivalTime!) : null,
@@ -259,6 +266,7 @@ class TripModel {
     String? originAddress,
     GeoFirePoint? destination,
     String? destinationAddress,
+    DateTime? departureDate,
     List<Map<String, dynamic>>? waypoints,
     DateTime? departureTime,
     DateTime? arrivalTime,
@@ -284,6 +292,7 @@ class TripModel {
       originAddress: originAddress ?? this.originAddress,
       destination: destination ?? this.destination,
       destinationAddress: destinationAddress ?? this.destinationAddress,
+      departureDate: departureDate ?? this.departureDate,
       waypoints: waypoints ?? (this.waypoints != null 
         ? List<Map<String, dynamic>>.from(this.waypoints!)
         : null),
@@ -323,6 +332,7 @@ class TripModel {
       originAddress: json['originAddress'] ?? '',
       destination: _parseGeoFirePoint(json['destination']),
       destinationAddress: json['destinationAddress'] ?? '',
+      departureDate: DateTime.parse(json['departureDate']),
       waypoints: json['waypoints'] != null
         ? List<Map<String, dynamic>>.from(json['waypoints'])
         : null,
@@ -362,6 +372,7 @@ class TripModel {
         'longitude': destination!.longitude,
       } : null,
       'destinationAddress': destinationAddress,
+      'departureDate': departureDate?.toIso8601String(),
       'waypoints': waypoints,
       'departureTime': departureTime.toIso8601String(),
       'arrivalTime': arrivalTime?.toIso8601String(),
@@ -413,6 +424,9 @@ class TripModel {
     }
     if (destinationAddress.isEmpty) {
       validationErrors.add('Adresse de destination manquante');
+    }
+    if (departureDate == null) {
+      validationErrors.add('Date de départ manquante');
     }
     if (vehicleType.isEmpty) {
       validationErrors.add('Type de véhicule manquant');

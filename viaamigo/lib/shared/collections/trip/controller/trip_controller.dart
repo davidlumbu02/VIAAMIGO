@@ -61,6 +61,21 @@ class TripController extends GetxController {
     _justNavigatedToPublisher.value = true;
     _modalAlreadyShown.value = false;
   }
+  /// 🆕 Helper pour updateVehicleInfo - utilisé par PublishTripPage
+  Future<void> updateVehicleInfo(String key, dynamic value) async {
+    if (currentTrip.value == null) return;
+    
+    final updatedInfo = Map<String, dynamic>.from(currentTrip.value!.vehicleInfo);
+    updatedInfo[key] = value;
+    
+    currentTrip.value = currentTrip.value!.copyWith(vehicleInfo: updatedInfo);
+    
+    if (isLocalMode.value) {
+      await _saveLocalDraft();
+    } else if (autoSave.value) {
+      await saveTrip();
+    }
+  }
   
   /// Initialise un nouveau trip ou récupère un brouillon existant
   Future<void> initTrip({String? existingTripId}) async {
@@ -134,24 +149,49 @@ class TripController extends GetxController {
   }
   
   /// Valide l'état des champs
-  void validateFields() {
-    if (currentTrip.value == null) return;
-    
-    originValid.value = currentTrip.value!.originAddress.isNotEmpty;
-    destinationValid.value = currentTrip.value!.destinationAddress.isNotEmpty;
-    departureTimeValid.value = currentTrip.value!.departureTime.isAfter(DateTime.now());
-    vehicleTypeValid.value = currentTrip.value!.vehicleType.isNotEmpty;
-    vehicleCapacityValid.value = currentTrip.value!.vehicleCapacity.isNotEmpty;
-    acceptedParcelTypesValid.value = currentTrip.value!.acceptedParcelTypes.isNotEmpty;
-    handlingCapabilitiesValid.value = currentTrip.value!.handlingCapabilities.isNotEmpty;
-    
-    // Synchroniser les observables
-    _syncObservables();
-    
-    // Valider le modèle et mettre à jour les erreurs
-    currentTrip.value!.validate();
-    validationErrorsList.value = List<String>.from(currentTrip.value!.validationErrors);
+/// Valide l'état des champs
+void validateFields() {
+  print("🧪 validateFields() appelé");
+
+  if (currentTrip.value == null) {
+    print("⚠️ Aucun trip à valider (currentTrip=null)");
+    return;
   }
+
+  print("➡️ Validation des champs principaux...");
+  originValid.value = currentTrip.value!.originAddress.isNotEmpty;
+  print("   - originValid: ${originValid.value}");
+
+  destinationValid.value = currentTrip.value!.destinationAddress.isNotEmpty;
+  print("   - destinationValid: ${destinationValid.value}");
+
+  departureTimeValid.value = currentTrip.value!.departureTime.isAfter(DateTime.now());
+  print("   - departureTimeValid: ${departureTimeValid.value}");
+
+  // Tu peux réactiver les autres validations si besoin
+  // vehicleTypeValid.value = currentTrip.value!.vehicleType.isNotEmpty;
+  // vehicleCapacityValid.value = currentTrip.value!.vehicleCapacity.isNotEmpty;
+  // acceptedParcelTypesValid.value = currentTrip.value!.acceptedParcelTypes.isNotEmpty;
+  // handlingCapabilitiesValid.value = currentTrip.value!.handlingCapabilities.isNotEmpty;
+
+  // Synchroniser les observables
+  _syncObservables();
+
+  // Valider le modèle complet
+  bool isModelValid = currentTrip.value!.validate();
+  validationErrorsList.value = List<String>.from(currentTrip.value!.validationErrors);
+
+  print("➡️ Résultat validate() du modèle: $isModelValid");
+  if (validationErrorsList.isNotEmpty) {
+    print("❌ Erreurs de validation trouvées:");
+    for (var err in validationErrorsList) {
+      print("   - $err");
+    }
+  } else {
+    print("✅ Aucun problème de validation");
+  }
+}
+
   
   /// Synchronise les observables avec le modèle
   void _syncObservables() {
@@ -187,56 +227,66 @@ class TripController extends GetxController {
     }
   }
   
-  /// Publie le trip
-  Future<bool> publishTrip() async {
-    if (currentTrip.value == null) return false;
-    
-    // Transition vers Firestore si en mode local
-    if (isLocalMode.value) {
-      print('🔄 Transition vers Firestore pour publication...');
-      await _transitionToFirestore();
-      
-      try {
-        await _clearLocalDraft();
-        await _forceCompleteReset();
-        print('✅ Publication terminée via transition');
-        return true;
-      } catch (resetError) {
-        print('⚠️ Erreur lors du reset: $resetError');
-        return true;
-      }
-    }
-    
-    // Logique de publication pour trips déjà en Firestore
-    if (!currentTrip.value!.validate()) {
-      validationErrorsList.value = List<String>.from(currentTrip.value!.validationErrors);
-      errorMessage.value = 'Erreurs de validation:\n${validationErrorsList.join('\n')}';
-      return false;
-    }
-    
-    isSaving.value = true;
+/// Publie le trip
+Future<bool> publishTrip() async {
+  print("🚀 Début publishTrip");   // <== Début
+
+  if (currentTrip.value == null) {
+    print("❌ Aucun currentTrip trouvé, abort publication");
+    return false;
+  }
+  
+  // Transition vers Firestore si en mode local
+  if (isLocalMode.value) {
+    print('📦 Mode local détecté → transition vers Firestore...');
+    await _transitionToFirestore();
     
     try {
-      await _tripService.publishTrip(currentTrip.value!);
-      
-      currentTrip.value!.status = 'available';
-      
-      try {
-        await _clearLocalDraft();
-        await _forceCompleteReset();
-        print('✅ Reset exécuté après publication réussie');
-      } catch (resetError) {
-        print('⚠️ Erreur lors du reset (publication réussie): $resetError');
-      }
+      await _clearLocalDraft();
+      await _forceCompleteReset();
+      print('✅ Publication terminée via transition Firestore');
       return true;
-    } catch (e) {
-      errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
-      return false;
-    } finally {
-      isSaving.value = false;
+    } catch (resetError) {
+      print('⚠️ Erreur lors du reset après transition: $resetError');
+      return true;
     }
   }
   
+  // Vérification des validations
+  print("🧪 Validation des champs du trip...");
+  if (!currentTrip.value!.validate()) {
+    validationErrorsList.value = List<String>.from(currentTrip.value!.validationErrors);
+    errorMessage.value = 'Erreurs de validation:\n${validationErrorsList.join('\n')}';
+    print("❌ Erreurs de validation: ${validationErrorsList.join(', ')}");
+    return false;
+  }
+  
+  isSaving.value = true;
+  print("💾 Sauvegarde vers Firestore en cours...");
+
+  try {
+    await _tripService.publishTrip(currentTrip.value!);
+    print("✅ publishTrip dans TripService réussi");
+
+    currentTrip.value!.status = 'available';
+    
+    try {
+      await _clearLocalDraft();
+      await _forceCompleteReset();
+      print('🧹 Reset exécuté après publication réussie');
+    } catch (resetError) {
+      print('⚠️ Erreur lors du reset (mais publication réussie): $resetError');
+    }
+    return true;
+  } catch (e) {
+    errorMessage.value = 'Erreur lors de la publication: ${e.toString()}';
+    print("❌ Exception publishTrip: $e");
+    return false;
+  } finally {
+    isSaving.value = false;
+    print("🏁 Fin publishTrip (isSaving=false)");
+  }
+}
   /// Met à jour un champ spécifique
   Future<void> updateField(String fieldName, dynamic value) async {
     if (currentTrip.value == null) return;
@@ -548,34 +598,41 @@ class TripController extends GetxController {
   // ----- GESTION DU MODE LOCAL -----
   
   /// Transition vers Firestore
-  Future<void> _transitionToFirestore() async {
-    if (!isLocalMode.value || currentTrip.value == null) return;
-    
-    try {
-      print('🔄 Transition vers Firestore...');
-      
-      // Créer et publier en une fois
-      print('🔄 Création du trip dans Firestore...');
-      final tripId = await _tripService.createEmptyTrip(currentTrip.value!);
-      currentTrip.value = currentTrip.value!.copyWith(
-        tripId: tripId,
-        status: 'available'
-      );
-      
-      // Mise à jour pour publication
-      await _tripService.updateTrip(currentTrip.value!);
-      
-      // Finaliser la transition
-      isLocalMode.value = false;
-      autoSave.value = true;
-      _stopLocalAutoSave();
-      
-      print('✅ Transition complète - Trip créé ET publié');
-    } catch (e) {
-      print('❌ Erreur transition: $e');
-      rethrow;
-    }
+ Future<void> _transitionToFirestore() async {
+  if (!isLocalMode.value || currentTrip.value == null) {
+    print("⚠️ _transitionToFirestore appelé mais pas en local ou currentTrip null");
+    return;
   }
+  
+  try {
+    print('🔄 Début transition vers Firestore...');
+    
+    // Créer et publier en une fois
+    print('📥 Appel createEmptyTrip...');
+    final tripId = await _tripService.createEmptyTrip(currentTrip.value!);
+    print('✅ Trip créé avec ID: $tripId');
+
+    currentTrip.value = currentTrip.value!.copyWith(
+      tripId: tripId,
+      status: 'available'
+    );
+    
+    print('📤 Appel updateTrip pour finaliser...');
+    await _tripService.updateTrip(currentTrip.value!);
+    print('✅ updateTrip terminé');
+
+    // Finaliser la transition
+    isLocalMode.value = false;
+    autoSave.value = true;
+    _stopLocalAutoSave();
+    
+    print('🎉 Transition complète - Trip créé ET publié');
+  } catch (e) {
+    print('❌ Erreur _transitionToFirestore: $e');
+    rethrow;
+  }
+}
+
   
   /// Génère un ID local
   String _generateLocalId() {
