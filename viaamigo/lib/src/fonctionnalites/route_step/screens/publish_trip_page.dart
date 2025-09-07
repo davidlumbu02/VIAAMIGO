@@ -1,10 +1,10 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/collections/trip/controller/trip_controller.dart';
 import 'package:viaamigo/shared/controllers/navigationcontroller.dart';
+import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 import 'package:viaamigo/shared/widgets/custom_text_field.dart';
 import 'package:viaamigo/shared/widgets/custom_widget.dart';
 import 'package:viaamigo/shared/widgets/my_button.dart';
@@ -311,6 +311,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
       onTap: () => _showAddressSearchModal(
         context: context,
         initialValue: originAddressController.text,
+        isOrigin: true,
         onSelected: (res) {
           originAddressController.text = res.formattedAddress;
           tripController.setOriginAddress(res.formattedAddress, res.latitude, res.longitude);
@@ -347,6 +348,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
       onTap: () => _showAddressSearchModal(
         context: context,
         initialValue: destinationAddressController.text,
+        isOrigin: false,
         onSelected: (res) {
           destinationAddressController.text = res.formattedAddress;
           tripController.setDestinationAddress(res.formattedAddress, res.latitude, res.longitude);
@@ -718,6 +720,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
     );
   }
 */
+
   Widget _buildCapacitySection() {
     final theme = Theme.of(context);
     return Column(
@@ -923,20 +926,34 @@ Widget _buildAcceptedTypes() {
     timeHasError.value = false;
   }
 
-  Future<void> _applyArrival() async {
-    if (_arrivalDate == null || _arrivalTime == null) {
-      await tripController.updateField('arrivalTime', null);
+Future<void> _applyArrival() async {
+  if (_arrivalDate == null || _arrivalTime == null) {
+    await tripController.updateField('arrivalTime', null);
+    return;
+  }
+  final dt = DateTime(
+    _arrivalDate!.year,
+    _arrivalDate!.month,
+    _arrivalDate!.day,
+    _arrivalTime!.hour,
+    _arrivalTime!.minute,
+  );
+  if (_departureDate != null && _departureTime != null) {
+    final departureDt = DateTime(
+      _departureDate!.year,
+      _departureDate!.month,
+      _departureDate!.day,
+      _departureTime!.hour,
+      _departureTime!.minute,
+    );
+    if (dt.isBefore(departureDt)) {
+      timeHasError.value = true;
+      UIMessageManager.error("Arrival time must be after departure time");
       return;
     }
-    final dt = DateTime(
-      _arrivalDate!.year,
-      _arrivalDate!.month,
-      _arrivalDate!.day,
-      _arrivalTime!.hour,
-      _arrivalTime!.minute,
-    );
-    await tripController.updateField('arrivalTime', dt);
   }
+  await tripController.updateField('arrivalTime', dt);
+}
 
   void _removeWaypoint(int index) {
     tripWaypoints.removeAt(index);
@@ -989,8 +1006,12 @@ Widget _buildAcceptedTypes() {
                     suggestions.clear();
                     return;
                   }
+              try {
                   final results = await GeocodingService.searchAddressSuggestions(query);
                   suggestions.assignAll(results);
+                } catch (e) {
+                  UIMessageManager.addressError("Failed to fetch address suggestions: $e");
+                }
                 },
               ),
               const SizedBox(height: 12),
@@ -1047,7 +1068,31 @@ Widget _buildAcceptedTypes() {
       ),
     );
   }
+  // ✅ NOUVELLE MÉTHODE : Supprimer l'adresse
+void _clearAddress() {
+  // Vider le champ texte
+  originAddressController.clear();
+  
+  // Réinitialiser l'adresse dans le contrôleur
+  tripController.setOriginAddress('', 0.0, 0.0);
+  
+  // Réinitialiser l'erreur d'adresse
+  originHasError.value = false;
+  
 
+}
+void _clearAddress2() {
+  // Vider le champ texte
+  destinationAddressController.clear();
+  
+  // Réinitialiser l'adresse dans le contrôleur
+  tripController.setDestinationAddress('', 0.0, 0.0);
+  
+  // Réinitialiser l'erreur d'adresse
+  destinationHasError.value = false;
+  
+
+}
   void _addWaypoint(String address, double lat, double lng, int duration) {
     final waypoint = {
       'address': address,
@@ -1062,6 +1107,7 @@ Widget _buildAcceptedTypes() {
   Future<void> _showAddressSearchModal({
     required BuildContext context,
     required String initialValue,
+    required bool isOrigin,
     required Function(GeocodingResult) onSelected,
   }) async {
     final theme = Theme.of(context);
@@ -1097,23 +1143,42 @@ Widget _buildAcceptedTypes() {
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                CustomTextField(
-                  controller: searchController,
-                  hintText: "Address",
-                  borderRadius: 12,
-                  borderColor: theme.colorScheme.primary.withAlpha(77),
-                  prefixIcon: const Icon(Icons.search),
-                  isTransparent: true,
-                  onChanged: (query) async {
-                    if (query.trim().length < 3) {
-                      suggestions.clear();
-                      return;
-                    }
-                    final results =
-                        await GeocodingService.searchAddressSuggestions(query);
+              CustomTextField(
+                controller: searchController,
+                hintText: isOrigin ? "Origin address" : "Destination address",
+                borderRadius: 12,
+                borderColor: isOrigin
+                    ? (originHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77))
+                    : (destinationHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77)),
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(LucideIcons.x, size: 20),
+                        onPressed: () {
+                          searchController.clear();
+                          suggestions.clear();
+                          if (isOrigin) {
+                            _clearAddress();
+                          } else {
+                            _clearAddress2();
+                          }
+                        },
+                      )
+                    : null,
+                isTransparent: true,
+                onChanged: (query) async {
+                  if (query.trim().length < 3) {
+                    suggestions.clear();
+                    return;
+                  }
+                  try {
+                    final results = await GeocodingService.searchAddressSuggestions(query);
                     suggestions.assignAll(results);
-                  },
-                ),
+                  } catch (e) {
+                    UIMessageManager.addressError("Failed to fetch address suggestions: $e");
+                  }
+                },
+              ),
                 const SizedBox(height: 20),
                 Expanded(
                   child: Obx(
@@ -1128,6 +1193,7 @@ Widget _buildAcceptedTypes() {
                                 title: Text(s.formattedAddress),
                                 onTap: () {
                                   onSelected(s);
+                                  
                                   Get.back();
                                 },
                               );
@@ -1142,7 +1208,6 @@ Widget _buildAcceptedTypes() {
       ),
     );
   }
-
 Future<void> _onSubmit() async {
   // ✅ AJOUTEZ CETTE VÉRIFICATION AU DÉBUT :
   // S'assurer qu'un trip existe avant de continuer
@@ -1152,13 +1217,7 @@ Future<void> _onSubmit() async {
     
     // Attendre que l'initialisation se termine
     if (tripController.currentTrip.value == null) {
-      Get.snackbar(
-        'Error',
-        'Unable to initialize trip. Please try again.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageManager.error("Unable to initialize trip. Please try again.");
       return;
     }
   }
@@ -1204,11 +1263,7 @@ Future<void> _onSubmit() async {
   }
 
   if (hasErrors) {
-    Get.snackbar(
-      'Validation Error', 
-      'Please fill all required fields correctly',
-      snackPosition: SnackPosition.BOTTOM,
-    );
+    UIMessageManager.error("Please fill all required fields correctly");
     return;
   }
 
@@ -1259,33 +1314,18 @@ Future<void> _onSubmit() async {
     
     // Publication
     final success = await tripController.publishTrip();
-    
+          // juste attendre un peu pour la stabilité
+      await Future.delayed(const Duration(milliseconds: 400));
+      // Rediriger vers le dashboard ou la liste des colis
+      Get.find<NavigationController>().navigateToNamed('home');
     if (success) {
-      Get.snackbar(
-        'Success',
-        'Trip published successfully!',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
+      UIMessageManager.success("Trip published successfully!");
       Get.back(); // Retour à la page précédente
     } else {
-      Get.snackbar(
-        'Error', 
-        (tripController.validationErrorsList ?? []).join('\n'),
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
+      UIMessageManager.error((tripController.validationErrorsList).join('\n'));
     }
   } catch (e) {
-    Get.snackbar(
-      'Error',
-      'An error occurred while publishing the trip: $e',
-      snackPosition: SnackPosition.BOTTOM,
-      backgroundColor: Colors.red,
-      colorText: Colors.white,
-    );
+UIMessageManager.error("An error occurred while publishing the trip: $e");
   }
 }
 }
