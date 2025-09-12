@@ -304,7 +304,16 @@ Future<bool> publishTrip() async {
         currentTrip.value = currentTrip.value!.copyWith(departureTime: value);
         departureTimeValid.value = (value as DateTime).isAfter(DateTime.now());
         break;
-      case 'arrivalTime':
+      /*case 'arrivalTime':
+        currentTrip.value = currentTrip.value!.copyWith(arrivalTime: value);
+        break;*/
+        case 'arrivalTime':
+        if (value != null && currentTrip.value!.departureTime != null) {
+          if ((value as DateTime).isBefore(currentTrip.value!.departureTime)) {
+            errorMessage.value = 'Arrival time must be after departure time';
+            return;
+          }
+        }
         currentTrip.value = currentTrip.value!.copyWith(arrivalTime: value);
         break;
       case 'vehicleType':
@@ -340,6 +349,9 @@ Future<bool> publishTrip() async {
         break;
       case 'g':
         currentTrip.value = currentTrip.value!.copyWith(g: value);
+        break;
+        case 'waypoints':
+        currentTrip.value = currentTrip.value!.copyWith(waypoints: value);
         break;
       case 'navigation_step':
         currentTrip.value = currentTrip.value!.copyWith(navigation_step: value);

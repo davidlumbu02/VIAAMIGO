@@ -232,9 +232,10 @@ class _PublishTripPageState extends State<PublishTripPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // --- SECTION DÉPART ---
+                       const SizedBox(height: 16),
                       sectionTitle(context, "Origin"),
                       _buildOriginAddress(),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 24),
                       _buildDepartureDateTime(),
                       const SizedBox(height: 24),
 
@@ -244,12 +245,12 @@ class _PublishTripPageState extends State<PublishTripPage> {
                       const SizedBox(height: 24),
 
                       // --- SECTION VÉHICULE ---
-                      sectionTitle(context, "Vehicle Information"),
+                      //sectionTitle(context, "Vehicle Information"),
                       _buildVehicleSection(),
                       const SizedBox(height: 24),
 
                       // --- SECTION OPTIONS ROUTE ---
-                      sectionTitle(context, "Route Options"),
+                      //sectionTitle(context, "Route Options"),
                       _buildWaypointsSection(),
                       const SizedBox(height: 24),
 /*
@@ -306,7 +307,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
   // --- UI BUILDERS ---
 
   Widget _buildOriginAddress() {
-    //final theme = Theme.of(context);
+    final theme = Theme.of(context);
     return InkWell(
       onTap: () => _showAddressSearchModal(
         context: context,
@@ -336,14 +337,14 @@ class _PublishTripPageState extends State<PublishTripPage> {
               : null,
           borderColor: originHasError.value 
               ? Colors.red 
-              : null,
+              : theme.colorScheme.outline.withAlpha(77),
         )),
       ),
     );
   }
 
   Widget _buildDestinationAddress() {
-   // final theme = Theme.of(context);
+    final theme = Theme.of(context);
     return InkWell(
       onTap: () => _showAddressSearchModal(
         context: context,
@@ -373,7 +374,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
               : null,
           borderColor: destinationHasError.value
               ? Colors.red
-              : null,
+              : theme.colorScheme.outline.withAlpha(77),
           
         )),
       ),
@@ -388,7 +389,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
         border: Border.all(
           color: timeHasError.value
               ? Colors.red
-              : theme.colorScheme.primary.withAlpha(77),
+              : theme.colorScheme.outline.withAlpha(77),
         ),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -517,7 +518,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
 
   // SECTION VÉHICULE
   Widget _buildVehicleSection() {
-    final theme = Theme.of(context);
+      final theme = Theme.of(context);
     return Column(
       children: [
         // Type de véhicule dropdown
@@ -526,15 +527,18 @@ class _PublishTripPageState extends State<PublishTripPage> {
           decoration: InputDecoration(
             labelText: "Vehicle type",
             prefixIcon: const Icon(LucideIcons.car),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(color: theme.colorScheme.outline.withAlpha(77))),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            filled: true,
+            fillColor: Colors.transparent,
           ),
           items: const [
             DropdownMenuItem(value: 'car', child: Text('🚗 Car')),
             DropdownMenuItem(value: 'van', child: Text('🚐 Van')),
             DropdownMenuItem(value: 'truck', child: Text('🚛 Truck')),
             DropdownMenuItem(value: 'motorcycle', child: Text('🏍️ Motorcycle')),
-            DropdownMenuItem(value: 'bicycle', child: Text('🚲 Bicycle')),
+            //DropdownMenuItem(value: 'bicycle', child: Text('🚲 Bicycle')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -554,7 +558,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 labelText: "Brand",
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
                 onSubmitted: (val) => tripController.updateVehicleInfo('brand', val),
               ),
             ),
@@ -565,7 +569,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 labelText: "Model",
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
                 onSubmitted: (val) => tripController.updateVehicleInfo('model', val),
               ),
             ),
@@ -581,7 +585,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 keyboardType: TextInputType.number,
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
                 onSubmitted: (val) {
                   final year = int.tryParse(val) ?? DateTime.now().year;
                   tripController.updateVehicleInfo('year', year);
@@ -595,7 +599,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 labelText: "Color",
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
                 onSubmitted: (val) => tripController.updateVehicleInfo('color', val),
               ),
             ),
@@ -607,7 +611,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
           labelText: "License plate",
           isTransparent: true,
           borderRadius: 10,
-          borderColor: theme.colorScheme.primary.withAlpha(77),
+          borderColor: theme.colorScheme.outline.withAlpha(77),
           onSubmitted: (val) => tripController.updateVehicleInfo('licensePlate', val),
         ),
       ],
@@ -722,7 +726,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
 */
 
   Widget _buildCapacitySection() {
-    final theme = Theme.of(context);
+   final theme = Theme.of(context);
     return Column(
       children: [
         Row(
@@ -734,7 +738,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 keyboardType: TextInputType.number,
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
               ),
             ),
             const SizedBox(width: 12),
@@ -745,12 +749,12 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 keyboardType: TextInputType.number,
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 24),
         Row(
           children: [
             Expanded(
@@ -760,7 +764,7 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 keyboardType: TextInputType.number,
                 isTransparent: true,
                 borderRadius: 10,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
               ),
             ),
             const SizedBox(width: 12),
@@ -922,8 +926,14 @@ Widget _buildAcceptedTypes() {
       _departureTime!.hour,
       _departureTime!.minute,
     );
-    await tripController.updateField('departureTime', dt);
-    timeHasError.value = false;
+if (dt.isBefore(DateTime.now())) {
+    timeHasError.value = true;
+    UIMessageManager.dateError("Departure date must be in the future");
+    return;
+  }
+  await tripController.updateField('departureTime', dt);
+  timeHasError.value = false;
+ // UIMessageManager.pickupTimeSet();
   }
 
 Future<void> _applyArrival() async {
@@ -1055,7 +1065,9 @@ Future<void> _applyArrival() async {
                               title: Text(s.formattedAddress),
                               onTap: () {
                                 addressController.text = s.formattedAddress;
+                                _addWaypoint(s.formattedAddress, s.latitude, s.longitude, int.tryParse(durationController.text) ?? 15);
                                 suggestions.clear();
+                                Get.back();
                               },
                             );
                           },
@@ -1094,6 +1106,10 @@ void _clearAddress2() {
 
 }
   void _addWaypoint(String address, double lat, double lng, int duration) {
+    if (lat == 0 || lng == 0) {
+    UIMessageManager.error("Invalid coordinates for waypoint: $address");
+    return;
+  }
     final waypoint = {
       'address': address,
       'latitude': lat,
@@ -1224,6 +1240,10 @@ Future<void> _onSubmit() async {
 
   // Validation des champs obligatoires
   bool hasErrors = false;
+  if (tripWaypoints.any((w) => w['latitude'] == 0 || w['longitude'] == 0)) {
+  UIMessageManager.error("All waypoints must have valid coordinates");
+  hasErrors = true;
+}
 
   // Validation adresses
   if (originAddressController.text.isEmpty) {
@@ -1317,9 +1337,10 @@ Future<void> _onSubmit() async {
           // juste attendre un peu pour la stabilité
       await Future.delayed(const Duration(milliseconds: 400));
       // Rediriger vers le dashboard ou la liste des colis
-      Get.find<NavigationController>().navigateToNamed('home');
+      
     if (success) {
       UIMessageManager.success("Trip published successfully!");
+      Get.find<NavigationController>().navigateToNamed('home');
       Get.back(); // Retour à la page précédente
     } else {
       UIMessageManager.error((tripController.validationErrorsList).join('\n'));
