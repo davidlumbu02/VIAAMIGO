@@ -8,6 +8,7 @@ import 'package:viaamigo/src/fonctionnalites/dashbord_home/screens/dashbordhomep
 import 'package:viaamigo/src/fonctionnalites/message/screens/message_page.dart';
 import 'package:viaamigo/src/fonctionnalites/plus%20boutton/screen/select_role.dart';
 import 'package:viaamigo/src/fonctionnalites/recherche/screens/recheche_page.dart';
+//import 'package:viaamigo/src/fonctionnalites/recherche/screens/recheche_page.dart';
 import 'package:viaamigo/src/fonctionnalites/route_step/screens/publish_trip_page.dart';
 import 'package:viaamigo/src/fonctionnalites/settings_pages/screens/settings_app.dart';
 import 'package:viaamigo/src/fonctionnalites/parcel_steps/screens/parcel_wizard_page.dart';
@@ -66,7 +67,7 @@ class NavigationController extends GetxController {
     ),
     AppRoute(
       name: 'search', 
-      pageBuilder: () => RecherchePage(),
+      pageBuilder: () => CocolisInspiredSearchPage(),//RecherchePage(),IntelligentSearchPage(),//
       showBottomBar: true,
     ),
     AppRoute(

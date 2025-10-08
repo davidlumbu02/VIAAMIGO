@@ -74,6 +74,9 @@ class _PublishTripPageState extends State<PublishTripPage> {
   final RxBool hRefrigerated = false.obs;
   final RxBool hOversized = false.obs;
   final RxBool hValuable = false.obs;
+  // Autoriser détour (simple bool)
+final RxBool allowDetours = false.obs;
+
 
   @override
   void initState() {
@@ -106,7 +109,9 @@ class _PublishTripPageState extends State<PublishTripPage> {
     // --- Temps ---
     final dep = trip?.departureTime;
     final arr = trip?.arrivalTime;
-
+  // Charger la valeur si elle existe dans le modèle, sinon false
+    allowDetours.value = trip?.allowDetours ?? false;
+    
     _departureDate = dep;
     _departureTime = dep != null ? TimeOfDay.fromDateTime(dep) : null;
     _arrivalDate = arr;
@@ -653,6 +658,24 @@ class _PublishTripPageState extends State<PublishTripPage> {
                 );
               }).toList(),
             )),
+            Obx(() => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Allow detours between origins and destinations, waypoints",
+                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ),
+                Switch(
+                  value: allowDetours.value,
+                  onChanged: (v) {
+                    allowDetours.value = v;
+                    tripController.updateField('allowDetours', v);
+                  },
+                ),
+              ],
+            )),
+
         
         // Bouton ajouter waypoint
         const SizedBox(height: 8),
@@ -1318,7 +1341,8 @@ Future<void> _onSubmit() async {
     final v = double.tryParse(maxVolumeController.text.trim()) ?? 100.0;
     final p = int.tryParse(maxParcelsController.text.trim()) ?? 3;
     await tripController.updateVehicleCapacity(w, v, p);
-
+// Autoriser détour
+await tripController.updateField('allowDetours', allowDetours.value);
     // Waypoints
     await tripController.updateField('waypoints', tripWaypoints.toList());
 

@@ -46,6 +46,9 @@ class TripModel {
   /// Points d'arrêt intermédiaires optionnels sur le trajet
   /// Structure: [{"address": "...", "latitude": x, "longitude": y, "stopDuration": minutes}]
   List<Map<String, dynamic>>? waypoints;
+
+  /// allow detours between origin and destination
+  bool allowDetours = false;
   
   // ----- INFORMATIONS TEMPORELLES -----
   
@@ -116,6 +119,7 @@ class TripModel {
     required this.destinationAddress,
     this.departureDate,
     this.waypoints,
+    this.allowDetours = false,
     required this.departureTime,
     this.arrivalTime,
     this.isRecurring = false,
@@ -207,6 +211,7 @@ class TripModel {
       waypoints: data['waypoints'] != null 
         ? List<Map<String, dynamic>>.from(data['waypoints'])
         : null,
+      allowDetours: data['allowDetours'] ?? false,
       departureTime: (data['departureTime'] as Timestamp).toDate(),
       arrivalTime: (data['arrivalTime'] as Timestamp?)?.toDate(),
       isRecurring: data['isRecurring'] ?? false,
@@ -238,6 +243,7 @@ class TripModel {
       'destinationAddress': destinationAddress,
       'departureDate': departureDate != null ? Timestamp.fromDate(departureDate!) : null,
       'waypoints': waypoints,
+      'allowDetours': allowDetours,
       'departureTime': Timestamp.fromDate(departureTime),
       'arrivalTime': arrivalTime != null ? Timestamp.fromDate(arrivalTime!) : null,
       'isRecurring': isRecurring,
@@ -268,6 +274,7 @@ class TripModel {
     String? destinationAddress,
     DateTime? departureDate,
     List<Map<String, dynamic>>? waypoints,
+    bool? allowDetours,
     DateTime? departureTime,
     DateTime? arrivalTime,
     bool? isRecurring,
@@ -296,6 +303,7 @@ class TripModel {
       waypoints: waypoints ?? (this.waypoints != null 
         ? List<Map<String, dynamic>>.from(this.waypoints!)
         : null),
+      allowDetours: allowDetours ?? this.allowDetours,
       departureTime: departureTime ?? this.departureTime,
       arrivalTime: arrivalTime ?? this.arrivalTime,
       isRecurring: isRecurring ?? this.isRecurring,
@@ -336,6 +344,7 @@ class TripModel {
       waypoints: json['waypoints'] != null
         ? List<Map<String, dynamic>>.from(json['waypoints'])
         : null,
+      allowDetours: json['allowDetours'] ?? false,
       departureTime: DateTime.parse(json['departureTime']),
       arrivalTime: json['arrivalTime'] != null
         ? DateTime.parse(json['arrivalTime'])
@@ -374,6 +383,7 @@ class TripModel {
       'destinationAddress': destinationAddress,
       'departureDate': departureDate?.toIso8601String(),
       'waypoints': waypoints,
+      'allowDetours': allowDetours,
       'departureTime': departureTime.toIso8601String(),
       'arrivalTime': arrivalTime?.toIso8601String(),
       'isRecurring': isRecurring,

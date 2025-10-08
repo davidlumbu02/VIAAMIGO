@@ -353,6 +353,9 @@ Future<bool> publishTrip() async {
         case 'waypoints':
         currentTrip.value = currentTrip.value!.copyWith(waypoints: value);
         break;
+      case 'allowDetours':
+        currentTrip.value = currentTrip.value!.copyWith(allowDetours: value);
+        break;
       case 'navigation_step':
         currentTrip.value = currentTrip.value!.copyWith(navigation_step: value);
         currentStep.value = value;
