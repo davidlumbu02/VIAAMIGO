@@ -241,7 +241,7 @@ final RxBool allowDetours = false.obs;
                       sectionTitle(context, "Origin"),
                       _buildOriginAddress(),
                       const SizedBox(height: 24),
-                      _buildDepartureDateTime(),
+                      _buildDepartureArrivalDateTime(),
                       const SizedBox(height: 24),
 
                       // --- SECTION DESTINATION ---
@@ -386,7 +386,7 @@ final RxBool allowDetours = false.obs;
     );
   }
 
-  Widget _buildDepartureDateTime() {
+  Widget _buildDepartureArrivalDateTime() {
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
@@ -431,7 +431,7 @@ final RxBool allowDetours = false.obs;
           ),
           const SizedBox(height: 12),
           _dateTimeRow(
-            label: "Estimated arrival (optional)",
+            label: " Arrival (Estimated)",
             dateController: arrivalDateController,
             timeController: arrivalTimeController,
             onPickDate: () async {
@@ -662,8 +662,8 @@ final RxBool allowDetours = false.obs;
               children: [
                 Expanded(
                   child: Text(
-                    "Allow detours between origins and destinations, waypoints",
-                    style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+                    "Allow detours between origins and destinations,(city where you can pick up parcels, etc.)",
+                    style: theme.textTheme.bodyMedium,
                   ),
                 ),
                 Switch(
@@ -671,6 +671,10 @@ final RxBool allowDetours = false.obs;
                   onChanged: (v) {
                     allowDetours.value = v;
                     tripController.updateField('allowDetours', v);
+                    if(!v){
+                      _removeAllwapoint();
+                    }
+                    
                   },
                 ),
               ],
@@ -679,7 +683,10 @@ final RxBool allowDetours = false.obs;
         
         // Bouton ajouter waypoint
         const SizedBox(height: 8),
-        SizedBox(
+         Obx(() {
+          if (!allowDetours.value) return const SizedBox();
+
+          return SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () => _showAddWaypointModal(),
@@ -688,9 +695,12 @@ final RxBool allowDetours = false.obs;
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              side: BorderSide(color: theme.colorScheme.primary.withAlpha(77)),
             ),
           ),
-        ),
+        );
+         }),
+
       ],
     );
   }
@@ -955,6 +965,8 @@ if (dt.isBefore(DateTime.now())) {
     return;
   }
   await tripController.updateField('departureTime', dt);
+  await tripController.updateField('departureDate', _departureDate);
+  await tripController.updateField('departureTime', _departureTime);
   timeHasError.value = false;
  // UIMessageManager.pickupTimeSet();
   }
@@ -986,12 +998,28 @@ Future<void> _applyArrival() async {
     }
   }
   await tripController.updateField('arrivalTime', dt);
+  await tripController.updateField('arrivalDate', _arrivalDate);
+  await tripController.updateField('arrivalTime', _arrivalTime);
 }
 
-  void _removeWaypoint(int index) {
-    tripWaypoints.removeAt(index);
+void _removeWaypoint(int index) {
+  // ✅ Utiliser la méthode du controller
+  tripController.removeWaypoint(index);
+  
+  // ✅ Synchroniser l'observable locale
+  tripWaypoints.removeAt(index);
+}
+  /*void _removeAllwapoint(){
+    tripWaypoints.clear();
     tripController.updateField('waypoints', tripWaypoints.toList());
+  }*/
+  void _removeAllwapoint(){
+  // ✅ Vider via le controller
+  while (tripWaypoints.isNotEmpty) {
+    tripController.removeWaypoint(0);
   }
+  tripWaypoints.clear();
+}
 
   Future<void> _showAddWaypointModal() async {
     final theme = Theme.of(context);
@@ -1023,17 +1051,18 @@ Future<void> _applyArrival() async {
                 ),
               ),
               Text(
-                "Add Intermediate Stop",
-                style: theme.textTheme.titleMedium,
+                "Add Intermediate Stop in order to plan a route with multiple stops",
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 20),
               CustomTextField(
                 controller: addressController,
-                hintText: "Stop address",
+                hintText: "way point city, address...",
                 borderRadius: 12,
                 prefixIcon: const Icon(LucideIcons.mapPin),
                 isTransparent: true,
-                borderColor: theme.colorScheme.primary.withAlpha(77),
+                borderColor: theme.colorScheme.outline.withAlpha(77),
                 onChanged: (query) async {
                   if (query.trim().length < 3) {
                     suggestions.clear();
@@ -1057,7 +1086,7 @@ Future<void> _applyArrival() async {
                       keyboardType: TextInputType.number,
                       borderRadius: 12,
                       isTransparent: true,
-                      borderColor: theme.colorScheme.primary.withAlpha(77),
+                      borderColor: theme.colorScheme.outline.withAlpha(77),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -1128,7 +1157,7 @@ void _clearAddress2() {
   
 
 }
-  void _addWaypoint(String address, double lat, double lng, int duration) {
+ /* void _addWaypoint(String address, double lat, double lng, int duration) {
     if (lat == 0 || lng == 0) {
     UIMessageManager.error("Invalid coordinates for waypoint: $address");
     return;
@@ -1141,7 +1170,25 @@ void _clearAddress2() {
     };
     tripWaypoints.add(waypoint);
     tripController.updateField('waypoints', tripWaypoints.toList());
+  }*/
+  void _addWaypoint(String address, double lat, double lng, int duration) {
+  if (lat == 0 || lng == 0) {
+    UIMessageManager.error("Invalid coordinates for waypoint: $address");
+    return;
   }
+  
+  // ✅ Utiliser la méthode du controller
+  tripController.addWaypoint(address, lat, lng, stopDuration: duration);
+  
+  // ✅ Synchroniser l'observable locale
+  final waypoint = {
+    'address': address,
+    'latitude': lat,
+    'longitude': lng,
+    'stopDuration': duration,
+  };
+  tripWaypoints.add(waypoint);
+}
 
   Future<void> _showAddressSearchModal({
     required BuildContext context,

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:viaamigo/shared/widgets/custom_text_field.dart';
-import 'package:viaamigo/src/fonctionnalites/recherche/screens/recheche_page.dart';
+import 'package:viaamigo/src/fonctionnalites/recherche/controllers/search_controller.dart';
 
 
 /// Onglet Colis - Style Cocolis avec carte interactive

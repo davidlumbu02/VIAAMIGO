@@ -267,7 +267,7 @@ String _formatTime(TimeOfDay? time) {
                 prefixIcon: const Icon(LucideIcons.user),
                 borderColor:  senderNameHasError.value  // ✅ CORRIGÉ
                   ? Colors.red
-                  : theme.colorScheme.primary.withAlpha(77),
+                  : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                 onChanged: (_) => senderNameHasError.value = false,
               )),
             ),
@@ -288,7 +288,7 @@ String _formatTime(TimeOfDay? time) {
                 prefixIcon: const Icon(LucideIcons.phone),
                 borderColor: senderPhoneHasError.value  // ✅ CORRIGÉ
                   ? Colors.red
-                  : theme.colorScheme.primary.withAlpha(77),
+                  : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                 onChanged: (_) => senderPhoneHasError.value = false,
               )),
             ),
@@ -335,7 +335,7 @@ Widget _buildAddressSection() {
                 : null,
             borderColor: addressHasError.value
                 ? Colors.red
-                : theme.colorScheme.primary.withAlpha(77),
+                : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
           )),
         ),
       ),
@@ -403,7 +403,7 @@ await navigationController.showAppBottomSheet<void>(
               borderRadius: 12,
               borderColor: addressHasError.value
                 ? Colors.red
-                : theme.colorScheme.primary.withAlpha(77),
+                : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
               prefixIcon: const Icon(Icons.search),
               // ✅ NOUVEAU : Bouton X dans le modal aussi
               suffixIcon: searchController.text.isNotEmpty 
@@ -466,7 +466,7 @@ Widget _buildPickupTimeSection() {
           border: Border.all(
             color: pickupTimeHasError.value 
               ? Colors.red 
-              : theme.colorScheme.primary.withAlpha(77)
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1)
           ),
           borderRadius: BorderRadius.circular(12),
         ),
@@ -545,7 +545,7 @@ Widget _buildDateTimeSelector({
                   prefixIcon: Icon(icon, size: 16),
                   borderColor: pickupTimeHasError.value
                     ? Colors.red
-                    : theme.colorScheme.outline.withAlpha(77),
+                    : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                 ),
               ),
             ),
@@ -564,7 +564,7 @@ Widget _buildDateTimeSelector({
                   prefixIcon: const Icon(LucideIcons.clock, size: 16),
                   borderColor: pickupTimeHasError.value
                     ? Colors.red
-                    : theme.colorScheme.outline.withAlpha(77),
+                    :theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                 ),
               ),
             ),
@@ -584,7 +584,7 @@ Widget _buildDateTimeSelector({
       maxLines: 4,
       borderRadius: 10,
       isTransparent: true,
-      borderColor: theme.colorScheme.primary.withAlpha(77),
+      borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
     );
   }
 

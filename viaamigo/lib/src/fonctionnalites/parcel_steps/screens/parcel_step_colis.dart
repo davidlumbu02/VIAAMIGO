@@ -199,7 +199,7 @@ void _onDimensionModeChanged(bool useExact) {
                                   keyboardType: TextInputType.number,
                                   borderRadius: 10,
                                   isTransparent: true,
-                                  borderColor: quantityHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77), // ✅ ICI
+                                  borderColor: quantityHasError.value ? Colors.red : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1), // ✅ ICI
                                   onChanged: (_) => quantityHasError.value = false,
                                   
                                 ),)
@@ -214,7 +214,7 @@ void _onDimensionModeChanged(bool useExact) {
                                   //onSubmitted: (val) => controller.updateField('title', val),
                                   borderRadius: 10,
                                   isTransparent: true,
-                                  borderColor: titleHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
+                                  borderColor: titleHasError.value ? Colors.red : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                                  onChanged: (_) => titleHasError.value = false,
                                 ),)
                               )
@@ -249,7 +249,7 @@ void _onDimensionModeChanged(bool useExact) {
                             endIcon: Icons.expand_more,
                             bordercolerput: sizeHasError.value
                             ? Colors.red
-                            : theme.colorScheme.primary.withAlpha(77),
+                            : theme.colorScheme.surfaceContainerHighest.withValues(alpha:1),
                             onTap: () async {
                               FocusScope.of(context).unfocus(); // ✅ Ferme le clavier
                               // Utiliser la valeur actuelle de selectedSize comme référence
@@ -282,7 +282,7 @@ void _onDimensionModeChanged(bool useExact) {
                         maxLines: 6,
                         borderRadius: 10,
                         isTransparent: true,
-                        borderColor: theme.colorScheme.primary.withAlpha(77),
+                        borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
                       ),
       
                       const SizedBox(height: 32),
@@ -530,7 +530,7 @@ Widget _buildPhotoWidget(String photoUrl) {
             //onSubmitted: (val) => controller.updateDimension('length', val),
             borderRadius: 10,
             isTransparent: true,
-            borderColor: lengthHasError.value ? Colors.red : theme.colorScheme.primary.withAlpha(77),
+            borderColor: lengthHasError.value ? Colors.red : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
           ),),
         ),
         const SizedBox(width: 8),
@@ -542,7 +542,7 @@ Widget _buildPhotoWidget(String photoUrl) {
            // onSubmitted: (val) => controller.updateDimension('width', val),
             borderRadius: 10,
             isTransparent: true,
-            borderColor: widthHasError.value ? Colors.red :  theme.colorScheme.primary.withAlpha(77),
+            borderColor: widthHasError.value ? Colors.red :  theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
           ),),
         ),
         const SizedBox(width: 8),
@@ -554,7 +554,7 @@ Widget _buildPhotoWidget(String photoUrl) {
           //  onSubmitted: (val) => controller.updateDimension('height', val),
             borderRadius: 10,
             isTransparent: true,
-            borderColor: heightHasError.value ? Colors.red :  theme.colorScheme.primary.withAlpha(77),
+            borderColor: heightHasError.value ? Colors.red : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
           ),
         ),),
       ],
@@ -573,7 +573,7 @@ Widget _buildPhotoWidget(String photoUrl) {
     endIcon: Icons.expand_more,
     bordercolerput: weightHasError.value 
         ? Colors.red 
-        : Theme.of(context).colorScheme.primary.withAlpha(77),
+        : Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 1),
     onTap: () async {
       final theme = Theme.of(context);
       final navigationController = Get.find<NavigationController>();

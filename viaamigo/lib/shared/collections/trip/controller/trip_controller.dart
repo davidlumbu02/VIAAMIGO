@@ -32,6 +32,9 @@ class TripController extends GetxController {
   final RxBool vehicleCapacityValid = false.obs;
   final RxBool acceptedParcelTypesValid = false.obs;
   final RxBool handlingCapabilitiesValid = false.obs;
+
+  DateTime _dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+
   
   // Mode local vs Firestore
   final RxBool isLocalMode = true.obs;
@@ -194,15 +197,112 @@ void validateFields() {
 
   
   /// Synchronise les observables avec le modèle
-  void _syncObservables() {
+  /*void _syncObservables() {
     if (currentTrip.value == null) return;
     
     acceptedParcelTypesList.value = List<String>.from(currentTrip.value!.acceptedParcelTypes);
     waypointsList.value = currentTrip.value!.waypoints != null 
         ? List<Map<String, dynamic>>.from(currentTrip.value!.waypoints!)
         : <Map<String, dynamic>>[];
+  }*/
+  // Mettre à jour _syncObservables()
+void _syncObservables() {
+  if (currentTrip.value == null) return;
+  
+  acceptedParcelTypesList.value = List<String>.from(currentTrip.value!.acceptedParcelTypes);
+  waypointsList.value = currentTrip.value!.waypoints != null 
+      ? List<Map<String, dynamic>>.from(currentTrip.value!.waypoints!)
+      : <Map<String, dynamic>>[];
+  // Ajouter la synchronisation des nouveaux champs (facultatif si géré côté Firestore)
+}
+
+// Mettre à jour addWaypoint()
+Future<void> addWaypoint(String address, double lat, double lng, {int stopDuration = 15}) async {
+  if (currentTrip.value == null) return;
+  
+  // ✅ TripModel gère TOUT automatiquement maintenant
+  currentTrip.value!.addWaypoint(address, lat, lng, stopDuration: stopDuration);
+  
+  _syncObservables();
+  
+  if (isLocalMode.value) {
+    await _saveLocalDraft();
+  } else if (autoSave.value) {
+    await saveTrip();
+  }
+}
+
+/*
+Future<void> addWaypoint(String address, double lat, double lng, {int stopDuration = 15}) async {
+  if (currentTrip.value == null) return;
+  
+  currentTrip.value!.addWaypoint(address, lat, lng, stopDuration: stopDuration);
+  _recalculateRouteSegments(); // Nouvelle méthode pour recalculer
+  _syncObservables();
+  
+  if (isLocalMode.value) {
+    await _saveLocalDraft();
+  } else if (autoSave.value) {
+    await saveTrip();
+  }
+}*/
+
+// Mettre à jour removeWaypoint()/
+Future<void> removeWaypoint(int index) async {
+  if (currentTrip.value == null) return;
+  
+  // ✅ TripModel gère TOUT automatiquement maintenant
+  currentTrip.value!.removeWaypoint(index);
+  
+  _syncObservables();
+  
+  if (isLocalMode.value) {
+    await _saveLocalDraft();
+  } else if (autoSave.value) {
+    await saveTrip();
+  }
+}
+/*
+Future<void> removeWaypoint(int index) async {
+  if (currentTrip.value == null) return;
+  
+  currentTrip.value!.removeWaypoint(index);
+  _recalculateRouteSegments(); // Nouvelle méthode pour recalculer
+  _syncObservables();
+  
+  if (isLocalMode.value) {
+    await _saveLocalDraft();
+  } else if (autoSave.value) {
+    await saveTrip();
+  }
+}*/
+
+// Nouvelle méthode pour recalculer routeSegments
+/*
+void _recalculateRouteSegments() {
+  if (currentTrip.value == null) return;
+  
+  // ✅ CORRECTION : Vérification des waypoints
+  final waypoints = currentTrip.value!.waypoints ?? [];
+  final waypointAddresses = waypoints.map((wp) => wp['address'] as String).toList();
+  
+  // Générer les segments
+  List<String> segments = [];
+  if (waypoints.isNotEmpty) {
+    segments.add('${currentTrip.value!.originAddress}→${waypoints[0]['address']}');
+    for (int i = 0; i < waypoints.length - 1; i++) {
+      segments.add('${waypoints[i]['address']}→${waypoints[i + 1]['address']}');
+    }
+    segments.add('${waypoints.last['address']}→${currentTrip.value!.destinationAddress}');
+  } else {
+    segments.add('${currentTrip.value!.originAddress}→${currentTrip.value!.destinationAddress}');
   }
   
+  currentTrip.value = currentTrip.value!.copyWith(
+    waypointAddresses: waypointAddresses,
+    routeSegments: segments
+  );
+}*/
   /// Sauvegarde le trip
   Future<void> saveTrip() async {
     if (currentTrip.value == null) return;
@@ -316,6 +416,42 @@ Future<bool> publishTrip() async {
         }
         currentTrip.value = currentTrip.value!.copyWith(arrivalTime: value);
         break;
+        case 'departureDate': {
+          if (value == null) return;
+          final d = _dateOnly(value as DateTime);
+          final today = _dateOnly(DateTime.now());
+
+          // Optionnel: interdire une date passée
+          if (d.isBefore(today)) {
+            errorMessage.value = 'the departure date cannot be in the past';
+            return;
+          }
+
+          // Si arrivalDate est déjà saisie, elle ne doit pas être avant la date de départ
+          final arr = currentTrip.value!.arrivalDate; // <-- voir note modèle ci-dessous
+          if (arr != null && _dateOnly(arr).isBefore(d)) {
+            errorMessage.value =
+                'the arrival date cannot be before the departure date';
+            return;
+          }
+
+          currentTrip.value = currentTrip.value!.copyWith(departureDate: d);
+          break;
+        }
+        case 'arrivalDate': {
+          if (value == null) return;
+          final a = _dateOnly(value as DateTime);
+
+          final dep = currentTrip.value!.departureDate;
+          if (dep != null && a.isBefore(_dateOnly(dep))) {
+            errorMessage.value =
+                'La date d\'arrivée doit être le même jour ou après la date de départ';
+            return;
+          }
+
+          currentTrip.value = currentTrip.value!.copyWith(arrivalDate: a);
+          break;
+        }
       case 'vehicleType':
         currentTrip.value = currentTrip.value!.copyWith(vehicleType: value);
         vehicleTypeValid.value = value.toString().isNotEmpty;
@@ -352,6 +488,7 @@ Future<bool> publishTrip() async {
         break;
         case 'waypoints':
         currentTrip.value = currentTrip.value!.copyWith(waypoints: value);
+       
         break;
       case 'allowDetours':
         currentTrip.value = currentTrip.value!.copyWith(allowDetours: value);
@@ -436,7 +573,7 @@ Future<bool> publishTrip() async {
   }
   
   /// Ajoute un point d'arrêt
-  Future<void> addWaypoint(String address, double lat, double lng, {int stopDuration = 15}) async {
+ /* Future<void> addWaypoint(String address, double lat, double lng, {int stopDuration = 15}) async {
     if (currentTrip.value == null) return;
     
     currentTrip.value!.addWaypoint(address, lat, lng, stopDuration: stopDuration);
@@ -448,9 +585,9 @@ Future<bool> publishTrip() async {
       await saveTrip();
     }
   }
-  
+  */
   /// Supprime un point d'arrêt
-  Future<void> removeWaypoint(int index) async {
+  /*Future<void> removeWaypoint(int index) async {
     if (currentTrip.value == null) return;
     
     currentTrip.value!.removeWaypoint(index);
@@ -461,7 +598,7 @@ Future<bool> publishTrip() async {
     } else if (autoSave.value) {
       await saveTrip();
     }
-  }
+  }*/
   
   /// Ajoute un type de colis accepté
   Future<void> addAcceptedParcelType(String parcelType) async {

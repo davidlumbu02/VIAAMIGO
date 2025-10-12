@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:viaamigo/src/fonctionnalites/recherche/controllers/search_controller.dart';
 import 'package:viaamigo/src/fonctionnalites/recherche/screens/parcels_tab.dart';
 import 'package:viaamigo/src/fonctionnalites/recherche/screens/trips_tab.dart';
 import 'package:viaamigo/src/utilitaires/theme/ThemedScaffoldWrapper.dart';
@@ -132,7 +133,7 @@ class _CocolisInspiredSearchPageState extends State<CocolisInspiredSearchPage>
 }
 
 /// Contrôleur partagé pour les deux onglets - CORRIGÉ
-class SearchPageController extends GetxController {
+/*class SearchPageController extends GetxController {
   final RxBool isMapView = false.obs;
   
   // États partagés entre les onglets si nécessaire
@@ -147,4 +148,4 @@ class SearchPageController extends GetxController {
   void setCurrentLocation(String location) {
     currentLocation.value = location;
   }
-}
+}*/

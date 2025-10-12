@@ -54,6 +54,9 @@ class TripModel {
   
   /// Date et heure de départ prévues
   DateTime departureTime;
+
+  /// Date et heure d'arrivée estimées (optionnel)
+  DateTime? arrivalDate;
   
   /// Date et heure d'arrivée estimées (optionnel)
   DateTime? arrivalTime;
@@ -103,7 +106,8 @@ class TripModel {
   
   /// Liste des erreurs de validation pour afficher à l'utilisateur
   List<String> validationErrors;
-  
+  List<String>? waypointAddresses;
+List<String>? routeSegments;
   // ----- CONSTRUCTEURS -----
   
   /// Constructeur principal avec tous les paramètres possibles
@@ -118,10 +122,12 @@ class TripModel {
     this.destination,
     required this.destinationAddress,
     this.departureDate,
+    this.arrivalDate,
     this.waypoints,
     this.allowDetours = false,
     required this.departureTime,
     this.arrivalTime,
+    
     this.isRecurring = false,
     this.schedule,
     required this.vehicleCapacity,
@@ -132,6 +138,8 @@ class TripModel {
     required this.notificationSettings,
     this.g, // ✅ AJOUT
     this.navigation_step = 0, // ✅ AJOUT
+    this.waypointAddresses,
+    this.routeSegments,
     List<String>? validationErrors, 
   }) : validationErrors = validationErrors ?? <String>[];
 
@@ -145,7 +153,15 @@ class TripModel {
       originAddress: '',
       destinationAddress: '',
       departureDate: null,
+      arrivalDate: null,
       departureTime: now.add(Duration(hours: 2)), // Départ dans 2h par défaut
+      arrivalTime: null,
+      isRecurring: false,
+      schedule: null,
+      waypoints: null,
+      waypointAddresses: null,
+      routeSegments: null,
+      allowDetours: false,
       vehicleCapacity: {
         'maxWeight': 20.0, // 20kg par défaut
         'maxVolume': 100.0, // 100L par défaut
@@ -168,13 +184,13 @@ class TripModel {
       },
       notificationSettings: {
         'app': true,
-        'sms': false,
+        'sms': true,
         'email': true,
         'sound': true,
       },
       createdAt: now,
       updatedAt: now,
-      navigation_step: 0, // ✅ AJOUT
+      //navigation_step: 0, // ✅ AJOUT
       validationErrors: <String>[], 
     );
   }
@@ -208,6 +224,7 @@ class TripModel {
       destination: destination,
       destinationAddress: data['destinationAddress'] ?? '',
       departureDate: (data['departureDate'] as Timestamp?)?.toDate(),
+      arrivalDate: (data['arrivalDate'] as Timestamp?)?.toDate(),
       waypoints: data['waypoints'] != null 
         ? List<Map<String, dynamic>>.from(data['waypoints'])
         : null,
@@ -225,12 +242,35 @@ class TripModel {
       g: data['g'], // ✅ AJOUT
       navigation_step: data['navigation_step'] ?? 0, // ✅ AJOUT
       validationErrors: List<String>.from(data['validationErrors'] ?? []),
-    );
+      waypointAddresses: data['waypointAddresses'] != null 
+        ? List<String>.from(data['waypointAddresses']) 
+        : null,
+      routeSegments: data['routeSegments'] != null 
+        ? List<String>.from(data['routeSegments']) 
+        : null,
+      );
   }
 
   /// Convertit l'instance en Map pour le stockage Firestore
   /// Gère la conversion des types spécifiques (DateTime en Timestamp, etc.)
   Map<String, dynamic> toFirestore() {
+  // ✅ CORRECTION : Générer waypointAddresses d'abord
+  waypointAddresses = waypoints?.map((wp) => wp['address'] as String).toList() ?? [];
+  /*
+  // ✅ CORRECTION : Génération sécurisée des segments
+  List<String> segments = [];
+  if (waypoints != null && waypoints!.isNotEmpty) {
+    segments.add('$originAddress→${waypoints![0]['address']}');
+    for (int i = 0; i < waypoints!.length - 1; i++) {
+      segments.add('${waypoints![i]['address']}→${waypoints![i + 1]['address']}');
+    }
+    segments.add('${waypoints!.last['address']}→$destinationAddress');
+  } else {
+    segments.add('$originAddress→$destinationAddress');
+  }*/
+  
+  // ✅ Affecter les segments générés
+  routeSegments = _generateAllPossibleSegments();
     return {
       'tripId': tripId,
       'driverId': driverId,
@@ -242,6 +282,7 @@ class TripModel {
       'destination': destination != null ? GeoPoint(destination!.latitude, destination!.longitude) : null,
       'destinationAddress': destinationAddress,
       'departureDate': departureDate != null ? Timestamp.fromDate(departureDate!) : null,
+      'arrivalDate': arrivalDate != null ? Timestamp.fromDate(arrivalDate!) : null,
       'waypoints': waypoints,
       'allowDetours': allowDetours,
       'departureTime': Timestamp.fromDate(departureTime),
@@ -257,6 +298,8 @@ class TripModel {
       'g': g, // ✅ AJOUT
       'navigation_step': navigation_step, // ✅ AJOUT
       'validationErrors': validationErrors,
+      'waypointAddresses': waypointAddresses,
+      'routeSegments': routeSegments,
     };
   }
 
@@ -273,6 +316,7 @@ class TripModel {
     GeoFirePoint? destination,
     String? destinationAddress,
     DateTime? departureDate,
+    DateTime? arrivalDate,
     List<Map<String, dynamic>>? waypoints,
     bool? allowDetours,
     DateTime? departureTime,
@@ -288,6 +332,8 @@ class TripModel {
     String? g, // ✅ AJOUT
     int? navigation_step, // ✅ AJOUT
     List<String>? validationErrors,
+    List<String>? waypointAddresses,
+    List<String>? routeSegments
   }) {
     return TripModel(
       tripId: tripId ?? this.tripId,
@@ -300,6 +346,7 @@ class TripModel {
       destination: destination ?? this.destination,
       destinationAddress: destinationAddress ?? this.destinationAddress,
       departureDate: departureDate ?? this.departureDate,
+      arrivalDate: arrivalDate ?? this.arrivalDate,
       waypoints: waypoints ?? (this.waypoints != null 
         ? List<Map<String, dynamic>>.from(this.waypoints!)
         : null),
@@ -319,6 +366,8 @@ class TripModel {
       g: g ?? this.g, // ✅ AJOUT
       navigation_step: navigation_step ?? this.navigation_step, // ✅ AJOUT
       validationErrors: validationErrors ?? List<String>.from(this.validationErrors),
+      waypointAddresses: waypointAddresses ?? this.waypointAddresses,
+      routeSegments: routeSegments ?? this.routeSegments
     );
   }
 
@@ -341,6 +390,7 @@ class TripModel {
       destination: _parseGeoFirePoint(json['destination']),
       destinationAddress: json['destinationAddress'] ?? '',
       departureDate: DateTime.parse(json['departureDate']),
+      arrivalDate: DateTime.parse(json['arrivalDate']),
       waypoints: json['waypoints'] != null
         ? List<Map<String, dynamic>>.from(json['waypoints'])
         : null,
@@ -382,6 +432,7 @@ class TripModel {
       } : null,
       'destinationAddress': destinationAddress,
       'departureDate': departureDate?.toIso8601String(),
+      'arrivalDate': arrivalDate?.toIso8601String(),
       'waypoints': waypoints,
       'allowDetours': allowDetours,
       'departureTime': departureTime.toIso8601String(),
@@ -437,6 +488,9 @@ class TripModel {
     }
     if (departureDate == null) {
       validationErrors.add('Date de départ manquante');
+    }
+    if (arrivalDate == null) {
+      validationErrors.add('Date d\'arrivée manquante');
     }
     if (vehicleType.isEmpty) {
       validationErrors.add('Type de véhicule manquant');
@@ -531,6 +585,44 @@ class TripModel {
     
     return arrivalTime;
   }
+  /// ✅ NOUVELLE MÉTHODE : Génère TOUS les segments possibles entre tous les points
+List<String> _generateAllPossibleSegments() {
+  // 1. Construire la route complète dans l'ordre
+  List<String> fullRoute = [originAddress];
+  
+  // 2. Ajouter tous les waypoints dans l'ordre
+  if (waypoints != null && waypoints!.isNotEmpty) {
+    for (var waypoint in waypoints!) {
+      fullRoute.add(waypoint['address'] as String);
+    }
+  }
+  
+  // 3. Ajouter la destination finale
+  fullRoute.add(destinationAddress);
+  
+  // 4. GÉNÉRATION DE TOUS LES SEGMENTS POSSIBLES
+  // Pour chaque point i, créer des segments vers tous les points j où j > i
+  List<String> allSegments = [];
+  
+  for (int i = 0; i < fullRoute.length; i++) {
+    for (int j = i + 1; j < fullRoute.length; j++) {
+      String segment = '${fullRoute[i]}→${fullRoute[j]}';
+      allSegments.add(segment);
+    }
+  }
+  
+  // 5. Vérification avec la formule n(n-1)/2
+  int expectedSegments = (fullRoute.length * (fullRoute.length - 1)) ~/ 2;
+  
+  if (allSegments.length != expectedSegments) {
+    print('⚠️ ERREUR génération segments: ${allSegments.length} générés vs $expectedSegments attendus');
+    print('   Points route: ${fullRoute.length} → formule: n(n-1)/2 = ${fullRoute.length}×${fullRoute.length-1}/2');
+  } else {
+    print('✅ Segments corrects: ${allSegments.length} pour ${fullRoute.length} points');
+  }
+  
+  return allSegments;
+}
 
   // ----- MÉTHODES UTILITAIRES -----
 
@@ -552,14 +644,55 @@ class TripModel {
       'longitude': longitude,
       'stopDuration': stopDuration, // en minutes
     });
+      _updateWaypointDerivedFields();
   }
 
   /// Supprime un point d'arrêt par index
-  void removeWaypoint(int index) {
+  /// /// Supprime un point d'arrêt par index
+void removeWaypoint(int index) {
+  if (waypoints != null && index >= 0 && index < waypoints!.length) {
+    waypoints!.removeAt(index);
+    
+    // ✅ Si waypoints devient vide, on le met à null
+    if (waypoints!.isEmpty) {
+      waypoints = null;
+    }
+    
+    // ✅ AJOUT : Recalculer automatiquement
+    _updateWaypointDerivedFields();
+  }
+}
+/// ✅ NOUVELLE MÉTHODE : Met à jour les champs dérivés des waypoints
+/*void _updateWaypointDerivedFields() {
+  // Mise à jour waypointAddresses
+  waypointAddresses = waypoints?.map((wp) => wp['address'] as String).toList();
+  
+  // Mise à jour routeSegments
+  List<String> segments = [];
+  if (waypoints != null && waypoints!.isNotEmpty) {
+    segments.add('$originAddress→${waypoints![0]['address']}');
+    for (int i = 0; i < waypoints!.length - 1; i++) {
+      segments.add('${waypoints![i]['address']}→${waypoints![i + 1]['address']}');
+    }
+    segments.add('${waypoints!.last['address']}→$destinationAddress');
+  } else {
+    segments.add('$originAddress→$destinationAddress');
+  }
+  routeSegments = segments;
+}*/
+ /* void removeWaypoint(int index) {
     if (waypoints != null && index >= 0 && index < waypoints!.length) {
       waypoints!.removeAt(index);
     }
-  }
+  }*/
+  /// ✅ MÉTHODE CORRIGÉE : Met à jour les champs dérivés des waypoints
+void _updateWaypointDerivedFields() {
+  // Mise à jour waypointAddresses
+  waypointAddresses = waypoints?.map((wp) => wp['address'] as String).toList();
+  
+  // ✅ CORRECTION PRINCIPALE : Génération de TOUS les segments possibles
+  routeSegments = _generateAllPossibleSegments();
+}
 
   /// Calcule la durée totale estimée du trajet
   Duration get estimatedDuration {
