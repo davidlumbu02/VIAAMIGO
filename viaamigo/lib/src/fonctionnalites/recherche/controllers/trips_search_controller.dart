@@ -2,14 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:viaamigo/shared/collections/trip/model/trip_model.dart';
+import 'package:viaamigo/shared/collections/trip/service/trip_service.dart';
 
 import 'package:viaamigo/src/fonctionnalites/recherche/controllers/search_controller.dart';
-import 'package:viaamigo/src/fonctionnalites/recherche/service/firebase_search_service.dart';
+//import 'package:viaamigo/src/fonctionnalites/recherche/service/firebase_search_service.dart';
 import 'package:viaamigo/shared/utilis/uimessagemanager.dart';
 
 
 class TripsSearchController extends GetxController {
-  final FirebaseService _service = FirebaseService();
+  //final FirebaseService _service = FirebaseService();
+  final TripService _service = TripService();
   final SearchPageController _pageController = Get.find<SearchPageController>();
   // 🔥 GETTER PROPRE pour éviter _pageController dans l'UI
   bool get isLoading => _pageController.isLoading.value;

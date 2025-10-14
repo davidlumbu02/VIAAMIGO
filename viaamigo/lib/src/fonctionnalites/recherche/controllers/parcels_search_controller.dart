@@ -8,6 +8,7 @@ import 'package:viaamigo/src/fonctionnalites/recherche/service/firebase_search_s
 
 class ParcelsSearchController extends GetxController {
   FirebaseService get _service => FirebaseService();
+  
   final SearchPageController _pageController = Get.find<SearchPageController>();
 
   // États réactifs pour l'UI de ParcelsTab

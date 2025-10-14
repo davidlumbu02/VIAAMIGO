@@ -1,10 +1,13 @@
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:intl/intl.dart';
 import 'package:viaamigo/src/utilitaires/theme/themedscaffoldwrapper.dart';
+import 'package:viaamigo/shared/collections/trip/model/trip_model.dart';
 
-/// ✅ PAGE DE RÉSULTATS OPTIMISÉE - COHÉRENTE AVEC TRIPSTAB
+/// ✅ PAGE DE RÉSULTATS BASÉE SUR LE VRAI TRIPMODEL
 class SearchResultsPage extends StatelessWidget {
-  final List<Map<String, dynamic>> trips;
+  final List<TripModel> trips; // ✅ Type correct
   final String from;
   final String to;
   final String date;
@@ -27,7 +30,7 @@ class SearchResultsPage extends StatelessWidget {
       child: Scaffold(
         backgroundColor: theme.colorScheme.surface,
         appBar: AppBar(
-          title: Text('$from → $to'),
+          title: Text('${from.split(',').first} → ${to.split(',').first}'),
           backgroundColor: theme.colorScheme.primary,
           foregroundColor: Colors.white,
           elevation: 0,
@@ -37,7 +40,7 @@ class SearchResultsPage extends StatelessWidget {
     );
   }
 
-  /// État vide professionnel
+  /// État vide (identique)
   Widget _buildEmptyState(ThemeData theme) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(30),
@@ -130,11 +133,11 @@ class SearchResultsPage extends StatelessWidget {
     );
   }
 
-  /// Liste des résultats avec header professionnel
+  /// Liste basée sur le vrai TripModel
   Widget _buildResultsList(ThemeData theme) {
     return CustomScrollView(
       slivers: [
-        // Header avec statistiques
+        // Header avec statistiques RÉELLES
         SliverToBoxAdapter(
           child: Container(
             margin: const EdgeInsets.all(20),
@@ -187,7 +190,7 @@ class SearchResultsPage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    // Badge de correspondance moyenne
+                    // ✅ Badge basé sur les statuts réels
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
@@ -195,7 +198,7 @@ class SearchResultsPage extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        '${_calculateAverageMatch()}% match',
+                        '${_countAvailableTrips()} disponibles',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -249,7 +252,7 @@ class SearchResultsPage extends StatelessWidget {
           ),
         ),
         
-        // Liste des trajets
+        // Liste des trajets RÉELS
         SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) {
@@ -260,7 +263,7 @@ class SearchResultsPage extends StatelessWidget {
                   20, 
                   index == trips.length - 1 ? 20 : 8
                 ),
-                child: _buildProfessionalTripCard(trips[index], theme),
+                child: _buildRealTripCard(trips[index], theme),
               );
             },
             childCount: trips.length,
@@ -270,33 +273,25 @@ class SearchResultsPage extends StatelessWidget {
     );
   }
 
-  /// 🔥 CARTE DE TRAJET PROFESSIONNELLE - IDENTIQUE À TRIPSTAB
-  Widget _buildProfessionalTripCard(Map<String, dynamic> trip, ThemeData theme) {
-    final tripType = trip['tripType'] as String? ?? 'direct';
-    final matchScore = trip['matchScore'] as int? ?? 85;
-    
+  /// 🔥 CARTE BASÉE SUR LE VRAI TRIPMODEL
+  Widget _buildRealTripCard(TripModel trip, ThemeData theme) {
+    // ✅ Déterminer le type de trajet basé sur les vraies propriétés
+    String tripType = 'direct';
+    String typeLabel = 'DIRECT';
+    IconData typeIcon = Icons.straight;
     Color badgeColor = theme.colorScheme.primary;
-    String typeLabel;
-    IconData typeIcon;
 
-    switch (tripType) {
-      case 'direct':
-        typeLabel = 'DIRECT';
-        typeIcon = Icons.straight;
-        break;
-      case 'intermediate':
-        typeLabel = 'POINT DE PASSAGE';
-        typeIcon = Icons.alt_route;
-        badgeColor = Colors.blue;
-        break;
-      case 'detour':
-        typeLabel = 'DÉTOUR';
-        typeIcon = Icons.explore;
-        badgeColor = Colors.orange;
-        break;
-      default:
-        typeLabel = 'TRAJET';
-        typeIcon = Icons.directions;
+    // ✅ Logique basée sur les vraies propriétés du TripModel
+    if (trip.waypoints != null && trip.waypoints!.isNotEmpty) {
+      tripType = 'intermediate';
+      typeLabel = 'AVEC ARRÊTS';
+      typeIcon = Icons.alt_route;
+      badgeColor = Colors.blue;
+    } else if (trip.allowDetours) {
+      tripType = 'detour';
+      typeLabel = 'DÉTOURS ACCEPTÉS';
+      typeIcon = Icons.explore;
+      badgeColor = Colors.orange;
     }
 
     return Card(
@@ -313,7 +308,7 @@ class SearchResultsPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header avec badge et score - IDENTIQUE À TRIPSTAB
+            // ✅ Header avec badge et statut RÉELS
             Row(
               children: [
                 Container(
@@ -339,19 +334,20 @@ class SearchResultsPage extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
+                // ✅ Statut réel du trajet
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _getScoreColor(matchScore).withValues(alpha: 0.1),
+                    color: _getStatusColor(trip.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: _getScoreColor(matchScore).withValues(alpha: 0.3),
+                      color: _getStatusColor(trip.status).withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
-                    'Score: $matchScore%',
+                    trip.displayStatus,
                     style: TextStyle(
-                      color: _getScoreColor(matchScore),
+                      color: _getStatusColor(trip.status),
                       fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -362,14 +358,15 @@ class SearchResultsPage extends StatelessWidget {
 
             const SizedBox(height: 16),
 
-            // Info principale du trajet - IDENTIQUE À TRIPSTAB
+            // ✅ Info du trajet basée sur TripModel
             Row(
               children: [
+                // ✅ Avatar basé sur le type de véhicule
                 CircleAvatar(
                   radius: 20,
                   backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.1),
                   child: Icon(
-                    Icons.person,
+                    _getVehicleIcon(trip.vehicleType),
                     color: theme.colorScheme.primary,
                   ),
                 ),
@@ -380,41 +377,34 @@ class SearchResultsPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // ✅ Route réelle
                       Text(
-                        trip['route'] ?? '${trip['origin']} → ${trip['destination']}',
+                        '${trip.originAddress} → ${trip.destinationAddress}',
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 1,
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
+                      
+                      // ✅ Type de véhicule et info véhicule RÉELS
                       Text(
-                        trip['driverName'] ?? 'Conducteur ViaAmigo',
+                        '${_getVehicleDisplayName(trip.vehicleType)}${trip.vehicleInfo['brand'] != null && trip.vehicleInfo['brand'].toString().isNotEmpty ? ' ${trip.vehicleInfo['brand']}' : ''}${trip.vehicleInfo['model'] != null && trip.vehicleInfo['model'].toString().isNotEmpty ? ' ${trip.vehicleInfo['model']}' : ''}',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
                       ),
-                      Row(
-                        children: [
-                          Icon(Icons.star, color: Colors.amber, size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${trip['rating'] ?? '4.8'} • ${trip['completedTrips'] ?? 15} trajets',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (trip['departureTime'] != null && trip['arrivalTime'] != null) ...[
+                      
+                      // ✅ Horaires RÉELS
+                      if (trip.departureTime != null) ...[
                         const SizedBox(height: 2),
                         Row(
                           children: [
                             Icon(Icons.schedule, color: theme.colorScheme.primary, size: 14),
                             const SizedBox(width: 4),
                             Text(
-                              '${trip['departureTime']} → ${trip['arrivalTime']}',
+                              '${DateFormat('HH:mm').format(trip.departureTime)}${trip.arrivalTime != null ? ' → ${DateFormat('HH:mm').format(trip.arrivalTime!)}' : ''}',
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                               ),
@@ -426,36 +416,30 @@ class SearchResultsPage extends StatelessWidget {
                   ),
                 ),
 
-                // Prix et info - IDENTIQUE À TRIPSTAB
+                // ✅ Capacités RÉELLES du TripModel
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(
-                      '\$${trip['actualPrice']?.toStringAsFixed(2) ?? '0.00'}',
-                      style: theme.textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
+                    // ✅ Capacité max colis
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${trip.vehicleCapacity['maxParcels'] ?? 0} colis max',
+                        style: TextStyle(
+                          color: theme.colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
-                    if (tripType == 'intermediate')
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Portion: ${trip['usedPortion'] ?? '65%'}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: Colors.blue,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
                     const SizedBox(height: 4),
+                    // ✅ Poids max
                     Text(
-                      '${trip['seats'] ?? 4} places',
+                      '${trip.vehicleCapacity['maxWeight'] ?? 0}kg max',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                       ),
@@ -465,8 +449,57 @@ class SearchResultsPage extends StatelessWidget {
               ],
             ),
 
-            // Info spécialisée selon le type - IDENTIQUE À TRIPSTAB
-            if (tripType == 'detour' && trip['detourInfo'] != null) ...[
+            // ✅ Informations spécialisées RÉELLES
+            if (trip.waypoints != null && trip.waypoints!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.blue.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.alt_route, color: Colors.blue, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Arrêts intermédiaires (${trip.waypoints!.length})',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    ...trip.waypoints!.take(2).map((waypoint) => 
+                      Text(
+                        '• ${waypoint['address']}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        ),
+                      ),
+                    ),
+                    if (trip.waypoints!.length > 2)
+                      Text(
+                        '... et ${trip.waypoints!.length - 2} autres arrêts',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+
+            if (trip.allowDetours) ...[
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(12),
@@ -479,11 +512,11 @@ class SearchResultsPage extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                    Icon(Icons.explore, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Détour: +${trip['detourInfo']['distance'] ?? 0}km, +${trip['detourInfo']['time'] ?? 0}min (+\$${trip['detourInfo']['extraCost']?.toStringAsFixed(2) ?? '0.00'})',
+                        'Détours acceptés • Le conducteur peut adapter son trajet',
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                         ),
@@ -494,37 +527,34 @@ class SearchResultsPage extends StatelessWidget {
               ),
             ],
 
-            if (tripType == 'intermediate') ...[
+            // ✅ Types de colis acceptés (propriété réelle du TripModel)
+            if (trip.acceptedParcelTypes.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.blue.withValues(alpha: 0.3),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.alt_route, color: Colors.blue, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Le conducteur passe par votre ville • Trajet partagé optimisé',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-                        ),
+              Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: trip.acceptedParcelTypes.take(4).map((type) => 
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      _getParcelTypeDisplayName(type),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                        fontSize: 10,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ).toList(),
               ),
             ],
 
             const SizedBox(height: 16),
 
-            // Bouton de réservation - IDENTIQUE À TRIPSTAB
+            // ✅ Bouton de réservation
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -552,21 +582,82 @@ class SearchResultsPage extends StatelessWidget {
     );
   }
 
-  /// Méthodes utilitaires
-  int _calculateAverageMatch() {
-    if (trips.isEmpty) return 0;
-    final scores = trips.map((trip) => trip['matchScore'] as int? ?? 85).toList();
-    return (scores.reduce((a, b) => a + b) / scores.length).round();
+  // ✅ MÉTHODES UTILITAIRES BASÉES SUR LE VRAI TRIPMODEL
+
+  int _countAvailableTrips() {
+    return trips.where((trip) => trip.status == 'available').length;
   }
 
-  Color _getScoreColor(int score) {
-    if (score >= 90) return Colors.green;
-    if (score >= 75) return Colors.orange;
-    return Colors.red;
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'available':
+        return Colors.green;
+      case 'in_progress':
+        return Colors.blue;
+      case 'completed':
+        return Colors.grey;
+      case 'cancelled':
+        return Colors.red;
+      default:
+        return Colors.grey;
+    }
   }
 
-  /// Fonction de réservation - IDENTIQUE À TRIPSTAB
-  void _bookTrip(Map<String, dynamic> trip, ThemeData theme) {
+  IconData _getVehicleIcon(String vehicleType) {
+    switch (vehicleType) {
+      case 'car':
+        return Icons.directions_car;
+      case 'van':
+        return Icons.airport_shuttle;
+      case 'truck':
+        return Icons.local_shipping;
+      case 'motorcycle':
+        return Icons.motorcycle;
+      case 'bicycle':
+        return Icons.pedal_bike;
+      default:
+        return Icons.directions_car;
+    }
+  }
+
+  String _getVehicleDisplayName(String vehicleType) {
+    switch (vehicleType) {
+      case 'car':
+        return 'Voiture';
+      case 'van':
+        return 'Fourgonnette';
+      case 'truck':
+        return 'Camion';
+      case 'motorcycle':
+        return 'Moto';
+      case 'bicycle':
+        return 'Vélo';
+      default:
+        return 'Véhicule';
+    }
+  }
+
+  String _getParcelTypeDisplayName(String type) {
+    switch (type) {
+      case 'documents':
+        return 'Documents';
+      case 'electronics':
+        return 'Électronique';
+      case 'clothing':
+        return 'Vêtements';
+      case 'fragile':
+        return 'Fragile';
+      case 'perishable':
+        return 'Périssable';
+      case 'bulky':
+        return 'Volumineux';
+      default:
+        return type;
+    }
+  }
+
+  /// ✅ Fonction de réservation avec le vrai TripModel
+  void _bookTrip(TripModel trip, ThemeData theme) {
     Get.dialog(
       AlertDialog(
         backgroundColor: theme.colorScheme.surface,
@@ -586,7 +677,7 @@ class SearchResultsPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Confirmer la réservation de ce trajet ${trip['tripType'] ?? 'inconnu'} ?',
+              'Confirmer la réservation de ce trajet ?',
               style: TextStyle(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
                 fontWeight: FontWeight.w500,
@@ -602,11 +693,11 @@ class SearchResultsPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('📍 ${trip['route'] ?? 'Route non spécifiée'}'),
-                  if (trip['departureTime'] != null && trip['arrivalTime'] != null)
-                    Text('🕐 ${trip['departureTime']} → ${trip['arrivalTime']}'),
-                  Text('🎯 Correspondance: ${trip['matchScore'] ?? 0}%'),
-                  Text('💰 Prix: \$${trip['actualPrice']?.toStringAsFixed(2) ?? '0.00'}'),
+                  Text('📍 ${trip.originAddress} → ${trip.destinationAddress}'),
+                  Text('🕐 ${DateFormat('dd/MM/yyyy HH:mm').format(trip.departureTime)}'),
+                  Text('🚗 ${_getVehicleDisplayName(trip.vehicleType)}'),
+                  Text('📦 ${trip.vehicleCapacity['maxParcels'] ?? 0} colis max (${trip.vehicleCapacity['maxWeight'] ?? 0}kg)'),
+                  Text('📋 ${trip.displayStatus}'),
                 ],
               ),
             ),
@@ -625,7 +716,7 @@ class SearchResultsPage extends StatelessWidget {
               Get.back();
               Get.snackbar(
                 'Réservation confirmée',
-                'Votre trajet a été réservé avec succès !',
+                'Trajet ${trip.tripId} réservé avec succès !',
                 backgroundColor: theme.colorScheme.primary,
                 colorText: Colors.white,
                 duration: const Duration(seconds: 3),

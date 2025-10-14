@@ -9,6 +9,12 @@ import 'package:viaamigo/shared/collections/parcel/services/geocoding_service.da
 class TripService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GeoCollectionReference<Map<String, dynamic>> _tripsGeoCollection;
+
+  TripService() :_tripsGeoCollection = GeoCollectionReference<Map<String, dynamic>>(
+          FirebaseFirestore.instance.collection('trips'),
+        );
+
   
   // Collection reference
   CollectionReference get _tripsCollection => _firestore.collection('trips');
@@ -153,20 +159,7 @@ class TripService {
     }
   }
   
-  /// Récupère un trip par son ID
-  Future<TripModel> getTripById(String tripId) async {
-    try {
-      final docSnap = await _tripsCollection.doc(tripId).get();
-      
-      if (docSnap.exists) {
-        return TripModel.fromFirestore(docSnap);
-      } else {
-        throw Exception('Trip non trouvé');
-      }
-    } catch (e) {
-      throw Exception('Erreur lors de la récupération du trip: $e');
-    }
-  }
+
   
   /// Récupère tous les trips d'un conducteur
   Stream<List<TripModel>> getUserTrips(String userId, {String? status}) {
@@ -379,6 +372,258 @@ class TripService {
       throw Exception('Erreur lors de l\'annulation du trip: $e');
     }
   }
+
+ 
+  // ==================== RECHERCHE DE TRAJETS OPTIMISÉE ====================
+
+  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
+  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
+Future<List<TripModel>> searchTrips({
+  required String fromLocation,
+  required String toLocation,
+  bool includeIntermediateStops = true,
+  bool allowDetours = false,
+  double maxDetourDistance = 50.0,
+  int maxDetourTime = 100, // en minutes
+  GeoPoint? centerForDetours,
+  int? limit = 100, // ✅ OPTIMISATION PERFORMANCE
+}) async {
+  try {
+    final allTrips = <TripModel>[];
+    final processedIds = <String>{}; // ✅ GROK: Excellente pratique anti-doublons
+
+    // 1. Trajets directs
+    Query<Map<String, dynamic>> directQuery = _firestore
+        .collection('trips')
+        .where('status', isEqualTo: 'available')
+        .where('originAddress', isEqualTo: fromLocation)
+        .where('destinationAddress', isEqualTo: toLocation);
+    
+    if (limit != null) directQuery = directQuery.limit(limit ~/ 3);
+    
+    final directSnapshot = await directQuery.get();
+    
+    // ✅ OPTIMISATION GROK: Filtrage et ajout optimisés
+    allTrips.addAll(
+      directSnapshot.docs
+          .where((doc) => processedIds.add(doc.id))
+          .map((doc) => TripModel.fromFirestore(doc))
+    );
+
+    // 2. ✅ CORRIGÉ : Trajets avec segments d'itinéraire
+    if (includeIntermediateStops) {
+      // Chercher le segment formaté "fromLocation→toLocation"
+      final segmentToFind = '$fromLocation→$toLocation';
+      
+      Query<Map<String, dynamic>> segmentQuery = _firestore
+          .collection('trips')
+          .where('status', isEqualTo: 'available')
+          .where('routeSegments', arrayContains: segmentToFind);
+          
+      if (limit != null) segmentQuery = segmentQuery.limit(limit ~/ 3);
+      
+      final segmentSnapshot = await segmentQuery.get();
+      
+      allTrips.addAll(
+        segmentSnapshot.docs
+            .where((doc) => processedIds.add(doc.id))
+            .map((doc) => TripModel.fromFirestore(doc))
+      );
+    }
+
+    // 3. Trajets avec détours géolocalisés
+    if (allowDetours && centerForDetours != null) {
+      final center = GeoFirePoint(centerForDetours);
+      
+      final geoResults = await _tripsGeoCollection.fetchWithin(
+        center: center,
+        radiusInKm: maxDetourDistance,
+        field: 'origin',
+        geopointFrom: (data) => _extractGeoPoint(data, 'origin'),
+        strictMode: false, // Moins strict pour les détours
+      );
+
+      // ✅ OPTIMISATION: Pipeline de traitement efficace
+      allTrips.addAll(
+        geoResults
+            .where((doc) => processedIds.add(doc.id))
+            .where((doc) => _isValidTrip(doc.data()))
+            .map((doc) => TripModel.fromFirestore(doc))
+            .where((trip) => trip.allowDetours)
+            .take(limit != null ? limit ~/ 3 : 50)
+      );
+    }
+
+    // ✅ GROK: Tri pour cohérence des résultats
+    allTrips.sort((a, b) => (a.tripId ?? '').compareTo(b.tripId ?? ''));
+    
+    // Limite finale si spécifiée
+    return limit != null ? allTrips.take(limit).toList() : allTrips;
+    
+  } catch (e) {
+    throw Exception('Erreur lors de la recherche des trajets: $e');
+  }
+} 
+
+  /// Recherche de trajets en temps réel (stream) - VERSION OPTIMISÉE
+  Stream<List<TripModel>> searchTripsStream({
+    required String fromLocation,
+    required String toLocation,
+    GeoPoint? centerForDetours,
+    double maxDetourDistance = 50.0,
+    int? limit = 50,
+  }) {
+    try {
+      if (centerForDetours != null) {
+        final center = GeoFirePoint(centerForDetours);
+        
+        return _tripsGeoCollection.subscribeWithin(
+          center: center,
+          radiusInKm: maxDetourDistance,
+          field: 'origin',
+          geopointFrom: (data) => _extractGeoPoint(data, 'origin'),
+          strictMode: false,
+        ).map((docs) {
+          return docs
+              .where((doc) => _isValidTrip(doc.data()))
+              .map((doc) => TripModel.fromFirestore(doc))
+              .where((trip) => trip.allowDetours)
+              .take(limit ?? 50)
+              .toList();
+        });
+      }
+
+      // Stream classique optimisé
+      Query<Map<String, dynamic>> tripQuery = _firestore
+          .collection('trips')
+          .where('status', isEqualTo: 'available')
+          .where('originAddress', isEqualTo: fromLocation)
+          .where('destinationAddress', isEqualTo: toLocation);
+          
+      if (limit != null) {
+        tripQuery = tripQuery.limit(limit);
+      }
+
+      return tripQuery.snapshots().map((snapshot) => 
+          snapshot.docs.map((doc) => TripModel.fromFirestore(doc)).toList());
+          
+    } catch (e) {
+      throw Exception('Erreur lors du stream de recherche des trajets: $e');
+    }
+  }
+  
+  // ==================== MATCHING OPTIMISÉ ====================
+
+  /// Matching colis-trajet - ✅ GROK: Gestion sécurisée des GeoPoint null
+  Future<List<TripModel>> matchTripsForParcel(ParcelModel parcel) async {
+    // ✅ OPTIMISATION GROK: Gestion null-safe avec opérateur ??
+    GeoPoint? originGeoPoint = parcel.origin != null
+        ? GeoPoint(parcel.origin!.latitude, parcel.origin!.longitude)
+        : null;
+
+    final trips = await searchTrips(
+      fromLocation: parcel.originAddress,
+      toLocation: parcel.destinationAddress,
+      includeIntermediateStops: true,
+      allowDetours: true,
+      centerForDetours: originGeoPoint,
+      limit: 20, // ✅ Limite raisonnable pour le matching
+    );
+    
+    return trips.where((trip) => trip.canAcceptParcel(parcel)).toList();
+  }
+
+  /// Matching en temps réel - ✅ GROK: Gestion sécurisée
+  Stream<List<TripModel>> matchTripsForParcelStream(ParcelModel parcel) {
+    GeoPoint? originGeoPoint = parcel.origin != null
+        ? GeoPoint(parcel.origin!.latitude, parcel.origin!.longitude)
+        : null;
+
+    return searchTripsStream(
+      fromLocation: parcel.originAddress,
+      toLocation: parcel.destinationAddress,
+      centerForDetours: originGeoPoint,
+      limit: 20,
+    ).map((trips) => trips.where((trip) => trip.canAcceptParcel(parcel)).toList());
+  }
+  
+  /// Obtenir un trajet par ID avec gestion d'erreur
+  Future<TripModel?> getTripById2(String tripId) async {
+    try {
+      final doc = await _firestore.collection('trips').doc(tripId).get();
+      return doc.exists ? TripModel.fromFirestore(doc) : null;
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération du trajet: $e');
+    }
+  }
+
+  /// Récupère un trip par son ID
+  Future<TripModel> getTripById(String tripId) async {
+    try {
+      final docSnap = await _tripsCollection.doc(tripId).get();
+      
+      if (docSnap.exists) {
+        return TripModel.fromFirestore(docSnap);
+      } else {
+        throw Exception('Trip non trouvé');
+      }
+    } catch (e) {
+      throw Exception('Erreur lors de la récupération du trip: $e');
+    }
+  }  
+
+   /// Stream d'un trajet spécifique
+  Stream<TripModel?> getTripStream(String tripId) {
+    return _firestore.collection('trips').doc(tripId).snapshots().map(
+      (doc) => doc.exists ? TripModel.fromFirestore(doc) : null,
+    );
+  }
+    /// ✅ OPTIMISATION GROK #4: Validation centralisée des trajets
+  bool _isValidTrip(Map<String, dynamic>? data) {
+    return data != null && data['status'] == 'available';
+  }
+  
+  /// ✅ OPTIMISATION GROK #2: Gestion sécurisée du geopointFrom avec validation
+  GeoPoint _extractGeoPoint(Map<String, dynamic> data, String field) {
+    if (data[field] == null) {
+      throw Exception('Champ "$field" manquant ou mal formaté');
+    }
+    
+    final fieldData = data[field];
+    
+    // ✅ Support flexible: GeoPoint direct OU Map avec {geopoint, geohash}
+    if (fieldData is GeoPoint) {
+      return fieldData; // Cas de vos modèles actuels
+    } else if (fieldData is Map<String, dynamic>) {
+      // Cas documentation officielle {geopoint: GeoPoint, geohash: String}
+      if (fieldData.containsKey('geopoint')) {
+        return fieldData['geopoint'] as GeoPoint;
+      }
+    }
+    
+    throw Exception('Structure du champ "$field" invalide. Attendu: GeoPoint ou {geopoint: GeoPoint}');
+  }
+  
+  /// Réserver un trajet - ✅ GROK: Ajout de updatedAt
+  Future<void> bookTrip(String tripId, String userId, {String? parcelId}) async {
+    try {
+      await _firestore.collection('trips').doc(tripId).update({
+        'status': 'booked',
+        'bookedBy': userId,
+        if (parcelId != null) 'matchId': parcelId,
+        'updatedAt': FieldValue.serverTimestamp(), // ✅ GROK: Suivi des modifications
+      });
+    } catch (e) {
+      throw Exception('Erreur lors de la réservation du trajet: $e');
+    }
+  }
+  // ==================== RECHERCHE DE COLIS OPTIMISÉE ====================
+
+  /// Recherche de colis avec filtres (fetch unique) - VERSION OPTIMISÉE
+ 
+
+  
+
 }
 
 // Modèle pour les événements de suivi de trip
