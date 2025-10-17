@@ -108,6 +108,9 @@ class TripModel {
   List<String> validationErrors;
   List<String>? waypointAddresses;
 List<String>? routeSegments;
+ // 🔥 NOUVELLES PROPRIÉTÉS pour la recherche moderne
+  String? matchType;        // 'direct', 'intermediate', 'detour'
+  int? matchScore;          // Score de pertinence 0-100
   // ----- CONSTRUCTEURS -----
   
   /// Constructeur principal avec tous les paramètres possibles
@@ -140,6 +143,8 @@ List<String>? routeSegments;
     this.navigation_step = 0, // ✅ AJOUT
     this.waypointAddresses,
     this.routeSegments,
+    this.matchType,
+    this.matchScore,
     List<String>? validationErrors, 
   }) : validationErrors = validationErrors ?? <String>[];
 
@@ -242,6 +247,8 @@ List<String>? routeSegments;
       g: data['g'], // ✅ AJOUT
       navigation_step: data['navigation_step'] ?? 0, // ✅ AJOUT
       validationErrors: List<String>.from(data['validationErrors'] ?? []),
+      matchScore: data['matchScore']?.toInt,
+      matchType: data['matchType'] ?? 'direct',
       waypointAddresses: data['waypointAddresses'] != null 
         ? List<String>.from(data['waypointAddresses']) 
         : null,
@@ -300,6 +307,8 @@ List<String>? routeSegments;
       'validationErrors': validationErrors,
       'waypointAddresses': waypointAddresses,
       'routeSegments': routeSegments,
+      'matchType': matchType,
+      'matchScore': matchScore,   // 🔥 NOUVEAU
     };
   }
 
@@ -333,7 +342,10 @@ List<String>? routeSegments;
     int? navigation_step, // ✅ AJOUT
     List<String>? validationErrors,
     List<String>? waypointAddresses,
-    List<String>? routeSegments
+    List<String>? routeSegments,
+    String? matchType,                     // 🔥 NOUVEAU
+    int? matchScore,
+    
   }) {
     return TripModel(
       tripId: tripId ?? this.tripId,
@@ -367,7 +379,9 @@ List<String>? routeSegments;
       navigation_step: navigation_step ?? this.navigation_step, // ✅ AJOUT
       validationErrors: validationErrors ?? List<String>.from(this.validationErrors),
       waypointAddresses: waypointAddresses ?? this.waypointAddresses,
-      routeSegments: routeSegments ?? this.routeSegments
+      routeSegments: routeSegments ?? this.routeSegments,
+      matchType: matchType ?? this.matchType,                     // 🔥 NOUVEAU
+      matchScore: matchScore ?? this.matchScore,
     );
   }
 
@@ -410,6 +424,8 @@ List<String>? routeSegments;
       g: json['g'], // ✅ AJOUT
       navigation_step: json['navigation_step'] ?? 0, // ✅ AJOUT
       validationErrors: List<String>.from(json['validationErrors'] ?? []),
+      matchScore: json['matchScore'] ?? 0.0,
+      matchType: json['matchType'] ?? 'direct',
     );
   }
 
@@ -448,6 +464,8 @@ List<String>? routeSegments;
       'g': g, // ✅ AJOUT
       'navigation_step': navigation_step, // ✅ AJOUT
       'validationErrors': validationErrors,
+      'matchType': matchType,
+      'matchScore': matchScore,
     };
   }
 

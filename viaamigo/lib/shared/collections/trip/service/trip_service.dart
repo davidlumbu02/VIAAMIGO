@@ -375,10 +375,155 @@ class TripService {
 
  
   // ==================== RECHERCHE DE TRAJETS OPTIMISÉE ====================
-
-  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
-  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
 Future<List<TripModel>> searchTrips({
+  required String fromLocation,
+  required String toLocation,
+  DateTime? selectedDate,  // 🔥 NOUVEAU PARAMÈTRE
+  bool includeIntermediateStops = true,
+  bool allowDetours = false,
+  double maxDetourDistance = 50.0,
+  int maxDetourTime = 100,
+  GeoPoint? centerForDetours,
+  int? limit = 100,
+}) async {
+  try {
+    final allTrips = <TripModel>[];
+    final processedIds = <String>{};
+    
+    // 🔥 CALCULS DE DATES CRITIQUES
+    final now = DateTime.now();
+    final todayMidnight = DateTime(now.year, now.month, now.day);
+    
+    DateTime startDate;
+    DateTime endDate;
+    
+    if (selectedDate != null) {
+      // 🔥 LOGIQUE : Si date sélectionnée, chercher UNIQUEMENT ce jour-là
+      startDate = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+      //endDate = startDate.add(Duration(days: 1)).subtract(Duration(microseconds: 1));
+      endDate = startDate.add(Duration(days: 365)); // Recherche sur 1 an à partir de selectedDate
+      // 🔥 VÉRIFICATION : Si date passée, retourner liste vide
+      if (startDate.isBefore(todayMidnight)) {
+        print('⚠️ Date sélectionnée est passée: $selectedDate < $todayMidnight');
+        return []; // Retour immédiat - zéro résultat
+      }
+    } else {
+      // 🔥 LOGIQUE : Sans date, chercher À PARTIR D'AUJOURD'HUI
+      startDate = todayMidnight;
+      endDate = todayMidnight.add(Duration(days: 365)); // 1 an dans le futur
+    }
+    
+    print('🔍 Recherche trajets entre: $startDate et $endDate');
+
+    // 1. 🔥 TRAJETS DIRECTS AVEC FILTRE DE DATE
+    Query<Map<String, dynamic>> directQuery = _firestore
+        .collection('trips')
+        .where('status', isEqualTo: 'available')
+        .where('originAddress', isEqualTo: fromLocation)
+        .where('destinationAddress', isEqualTo: toLocation)
+        .where('departureTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+        .where('departureTime', isLessThan: Timestamp.fromDate(endDate));
+    
+    if (limit != null) directQuery = directQuery.limit(limit ~/ 3);
+    
+    final directSnapshot = await directQuery.get();
+    
+    allTrips.addAll(
+      directSnapshot.docs
+          .where((doc) => processedIds.add(doc.id))
+          .map((doc) => TripModel.fromFirestore(doc))
+    );
+
+    // 2. 🔥 TRAJETS AVEC SEGMENTS + FILTRE DE DATE
+    if (includeIntermediateStops) {
+      final segmentToFind = '$fromLocation→$toLocation';
+      
+      Query<Map<String, dynamic>> segmentQuery = _firestore
+          .collection('trips')
+          .where('status', isEqualTo: 'available')
+          .where('routeSegments', arrayContains: segmentToFind)
+          .where('departureTime', isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+          .where('departureTime', isLessThan: Timestamp.fromDate(endDate));
+          
+      if (limit != null) segmentQuery = segmentQuery.limit(limit ~/ 3);
+      
+      final segmentSnapshot = await segmentQuery.get();
+      
+      allTrips.addAll(
+        segmentSnapshot.docs
+            .where((doc) => processedIds.add(doc.id))
+            .map((doc) => TripModel.fromFirestore(doc))
+      );
+    }
+
+    // 3. 🔥 TRAJETS DÉTOURS + FILTRE DE DATE
+    if (allowDetours && centerForDetours != null) {
+      final center = GeoFirePoint(centerForDetours);
+      
+      final geoResults = await _tripsGeoCollection.fetchWithin(
+        center: center,
+        radiusInKm: maxDetourDistance,
+        field: 'origin',
+        geopointFrom: (data) => _extractGeoPoint(data, 'origin'),
+        strictMode: false,
+      );
+
+      allTrips.addAll(
+        geoResults
+            .where((doc) => processedIds.add(doc.id))
+            .where((doc) => _isValidTrip(doc.data()))
+            .map((doc) => TripModel.fromFirestore(doc))
+            .where((trip) => trip.allowDetours)
+            // 🔥 FILTRE DE DATE POUR DÉTOURS AUSSI
+            .where((trip) => 
+              trip.departureTime.isAfter(startDate) && 
+              trip.departureTime.isBefore(endDate))
+            .take(limit != null ? limit ~/ 3 : 50)
+      );
+    }
+
+    // 🔥 TRI INTELLIGENT PAR HEURE
+    allTrips.sort((a, b) {
+      // Si c'est aujourd'hui, exclure les heures passées
+      if (selectedDate == null || _isSameDay(selectedDate, now)) {
+        final nowTime = now;
+        
+        // Exclure les trajets avec heure déjà passée aujourd'hui
+        final aIsPassed = _isSameDay(a.departureTime, now) && a.departureTime.isBefore(nowTime);
+        final bIsPassed = _isSameDay(b.departureTime, now) && b.departureTime.isBefore(nowTime);
+        
+        if (aIsPassed && !bIsPassed) return 1; // a après b
+        if (!aIsPassed && bIsPassed) return -1; // a avant b
+      }
+      
+      // Tri par heure de départ (plus tôt en premier)
+      return a.departureTime.compareTo(b.departureTime);
+    });
+    
+    // 🔥 FILTRER LES HEURES PASSÉES SI C'EST AUJOURD'HUI SANS DATE SÉLECTIONNÉE
+    if (selectedDate == null) {
+      allTrips.removeWhere((trip) => 
+        _isSameDay(trip.departureTime, now) && trip.departureTime.isBefore(now));
+    }
+    
+    print('✅ Trajets trouvés après filtrage: ${allTrips.length}');
+    return limit != null ? allTrips.take(limit).toList() : allTrips;
+    
+  } catch (e) {
+    print('❌ Erreur recherche avec date: $e');
+    throw Exception('Erreur lors de la recherche des trajets: $e');
+  }
+}
+
+// 🔥 MÉTHODE UTILITAIRE À AJOUTER
+bool _isSameDay(DateTime date1, DateTime date2) {
+  return date1.year == date2.year && 
+         date1.month == date2.month && 
+         date1.day == date2.day;
+}
+  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
+  /// Recherche intelligente de trajets (fetch unique) - VERSION ULTRA-OPTIMISÉE
+/*Future<List<TripModel>> searchTrips({
   required String fromLocation,
   required String toLocation,
   bool includeIntermediateStops = true,
@@ -464,7 +609,7 @@ Future<List<TripModel>> searchTrips({
     throw Exception('Erreur lors de la recherche des trajets: $e');
   }
 } 
-
+*/
   /// Recherche de trajets en temps réel (stream) - VERSION OPTIMISÉE
   Stream<List<TripModel>> searchTripsStream({
     required String fromLocation,

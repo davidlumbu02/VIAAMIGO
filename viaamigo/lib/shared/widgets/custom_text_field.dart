@@ -25,6 +25,7 @@ class CustomTextField extends StatefulWidget {
   final bool readOnly;                         // ✅ Ajouté
   final String? semanticsLabel;                // ✅ Accessibilité
   final bool hasBorder; // ✅ Ajouté
+    final VoidCallback? onTap;                // ✅ NEW
 
   const CustomTextField({
     super.key,
@@ -52,6 +53,7 @@ class CustomTextField extends StatefulWidget {
     this.readOnly = false,
     this.semanticsLabel,
     this.hasBorder = true,
+    this.onTap,
   });
 
   @override
@@ -85,6 +87,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
         onChanged: widget.onChanged,              // ✅ Ajouté
         enabled: widget.enabled,                  // ✅ Ajouté
         readOnly: widget.readOnly,                // ✅ Ajouté
+        onTap: widget.onTap,                      // ✅ NEW
         style: theme.textTheme.bodyMedium?.copyWith(
           color: widget.enabled ? null : theme.colorScheme.onSurface.withAlpha(100),
         ),

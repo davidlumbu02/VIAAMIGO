@@ -164,6 +164,8 @@ class _TripsTabState extends State<TripsTab> {
             icon: LucideIcons.calendar,
             dateController: _dateController,
             timeController: _timeController,
+            suffixIcon: LucideIcons.x,
+
             onDateTap: () => _selectDate(context),
           ),
 
@@ -270,7 +272,233 @@ class _TripsTabState extends State<TripsTab> {
 
   /// 🔥 RECHERCHE ET NAVIGATION DIRECTE VERS SEARCHRESULTSPAGE
   /// 🔥 RECHERCHE ET NAVIGATION BASÉE SUR LE VRAI TRIPMODEL
-Future<void> _performSearchAndNavigate() async {
+  /// 🔥 RECHERCHE VIA LE CONTRÔLEUR// Dans _performSearchAndNavigate() - REMPLACER par cette version corrigée
+  Future<void> _performSearchAndNavigate() async {
+  // Validation des champs obligatoires
+  if (_fromController.text.isEmpty || _toController.text.isEmpty) {
+    UIMessageManager.error("please fill all mandatory fields.");
+    return;
+  }
+
+  // 🔥 PARSER LA DATE SÉLECTIONNÉE
+  DateTime? selectedDate;
+  String errorMessage = '';
+  
+  if (_dateController.text.isNotEmpty) {
+    try {
+      selectedDate = DateFormat('dd MMM yyyy').parse(_dateController.text);
+      
+      // 🔥 VALIDATION : Vérifier si date passée
+      final today = DateTime.now();
+      final todayMidnight = DateTime(today.year, today.month, today.day);
+      final selectedMidnight = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+      
+      if (selectedMidnight.isBefore(todayMidnight)) {
+        errorMessage = 'La date sélectionnée (${DateFormat('dd/MM/yyyy').format(selectedDate)}) est déjà passée. Veuillez choisir une date future ou effacer le champ date pour voir tous les trajets à venir.';
+      }
+    } catch (e) {
+      errorMessage = 'Format de date invalide. Veuillez sélectionner une date via le calendrier.';
+    }
+  }
+  
+  // 🔥 Afficher message si date passée et ARRÊTER
+  if (errorMessage.isNotEmpty) {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.calendar_today, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text('Date invalide'),
+          ],
+        ),
+        content: Text(errorMessage),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              _dateController.clear(); // Effacer le champ date
+            },
+            child: Text('Effacer la date'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return; // 🔥 ARRÊTER ICI - NE PAS FAIRE DE RECHERCHE
+  }
+
+  // Construire le GeoPoint pour détours
+  GeoPoint? centerForDetours;
+  try {
+    if (_fromLatitude.value.isNotEmpty && _fromLongitude.value.isNotEmpty) {
+      centerForDetours = GeoPoint(
+        double.parse(_fromLatitude.value),
+        double.parse(_fromLongitude.value),
+      );
+    }
+  } catch (e) {
+    print('⚠️ Erreur parsing coordonnées: $e');
+    centerForDetours = null;
+  }
+
+  // 🔥 RECHERCHE AVEC DATE PARSÉE
+  await _searchController.searchIntelligentTrips(
+    centerForDetours: centerForDetours,
+    selectedDate: selectedDate,  // 🔥 PASSER LA DATE PARSÉE
+  );
+
+  try {
+    final List<TripModel> tripResults = _searchController.results;
+    
+    // 🔥 Message spécifique si aucun résultat avec date
+    if (tripResults.isEmpty) {
+      String emptyMessage = selectedDate != null 
+        ? 'Aucun trajet trouvé pour le ${DateFormat('dd/MM/yyyy').format(selectedDate)}'
+        : 'Aucun trajet trouvé pour ces critères';
+        
+      Get.to(() => SearchResultsPage(
+        trips: [],
+        from: _fromController.text,
+        to: _toController.text,
+        date: _dateController.text,
+        time: _timeController.text,
+        emptyMessage: emptyMessage,
+      ));
+      return;
+    }
+
+    // 🚀 NAVIGATION AVEC RÉSULTATS
+    Get.to(() => SearchResultsPage(
+      trips: tripResults,
+      from: _fromController.text,
+      to: _toController.text,
+      date: _dateController.text,
+      time: _timeController.text,
+    ));
+    
+  } catch (e) {
+    print('❌ Erreur lors de la navigation: $e');
+    UIMessageManager.error("Erreur lors de l'affichage des résultats: ${e.toString()}");
+  }
+}
+/*Future<void> _performSearchAndNavigate() async {
+  // Validation des champs obligatoires
+  if (_fromController.text.isEmpty || _toController.text.isEmpty) {
+    UIMessageManager.error("Veuillez remplir tous les champs obligatoires.");
+    return;
+  }
+
+  // 🔥 NOUVEAU : Parser et valider la date sélectionnée
+  DateTime? selectedDate;
+  String errorMessage = '';
+  
+  if (_dateController.text.isNotEmpty) {
+    try {
+      selectedDate = DateFormat('dd MMM yyyy').parse(_dateController.text);
+      
+      // 🔥 VALIDATION CRUCIALE : Vérifier si date passée
+      final today = DateTime.now();
+      final todayMidnight = DateTime(today.year, today.month, today.day);
+      final selectedMidnight = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+      
+      if (selectedMidnight.isBefore(todayMidnight)) {
+        errorMessage = 'La date sélectionnée (${DateFormat('dd/MM/yyyy').format(selectedDate)}) est déjà passée. Veuillez choisir une date future ou effacer le champ date pour voir tous les trajets à venir.';
+      }
+    } catch (e) {
+      errorMessage = 'Format de date invalide. Veuillez sélectionner une date via le calendrier.';
+    }
+  }
+  
+  // 🔥 Afficher message si date passée et arrêter
+  if (errorMessage.isNotEmpty) {
+    Get.dialog(
+      AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.calendar_today, color: Colors.orange),
+            const SizedBox(width: 8),
+            Text('Date invalide'),
+          ],
+        ),
+        content: Text(errorMessage),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Get.back();
+              // Effacer le champ date
+              _dateController.clear();
+            },
+            child: Text('Effacer la date'),
+          ),
+          ElevatedButton(
+            onPressed: () => Get.back(),
+            child: Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
+  }
+
+  // Construire le GeoPoint pour détours si disponible
+  GeoPoint? centerForDetours;
+  try {
+    if (_fromLatitude.value.isNotEmpty && _fromLongitude.value.isNotEmpty) {
+      centerForDetours = GeoPoint(
+        double.parse(_fromLatitude.value),
+        double.parse(_fromLongitude.value),
+      );
+    }
+  } catch (e) {
+    print('⚠️ Erreur parsing coordonnées: $e');
+    centerForDetours = null;
+  }
+
+  // 🎯 RECHERCHE AVEC DATE
+  await _searchController.searchIntelligentTrips(
+    centerForDetours: centerForDetours,
+    //selectedDate: selectedDate,  // 🔥 NOUVEAU
+  );
+
+  try {
+    final List<TripModel> tripResults = _searchController.results;
+    
+    // 🔥 Message spécifique si aucun résultat avec date
+    if (tripResults.isEmpty) {
+      String emptyMessage = selectedDate != null 
+        ? 'Aucun trajet trouvé pour le ${DateFormat('dd/MM/yyyy').format(selectedDate)}'
+        : 'Aucun trajet trouvé pour ces critères';
+        
+      Get.to(() => SearchResultsPage(
+        trips: [],
+        from: _fromController.text,
+        to: _toController.text,
+        date: _dateController.text,
+        time: _timeController.text,
+        emptyMessage: emptyMessage,  // 🔥 NOUVEAU paramètre
+      ));
+      return;
+    }
+
+    // 🚀 NAVIGATION AVEC RÉSULTATS
+    Get.to(() => SearchResultsPage(
+      trips: tripResults,
+      from: _fromController.text,
+      to: _toController.text,
+      date: _dateController.text,
+      time: _timeController.text,
+    ));
+    
+  } catch (e) {
+    print('❌ Erreur lors de la navigation: $e');
+    UIMessageManager.error("Erreur lors de l'affichage des résultats: ${e.toString()}");
+  }
+}*/
+/*Future<void> _performSearchAndNavigate() async {
 
     // Validation des champs obligatoires
     if (_fromController.text.isEmpty || _toController.text.isEmpty) {
@@ -326,101 +554,7 @@ Future<void> _performSearchAndNavigate() async {
     }
 
 }
- /* Future<void> _performSearchAndNavigate() async {
-    if (_fromController.text.isEmpty || _toController.text.isEmpty) {
-      UIMessageManager.error("Please all mandatory fields.");
-
-      return;
-    }
-
-    // Construire le GeoPoint pour détours si disponible
-    GeoPoint? centerForDetours;
-    if (_fromLatitude.value.isNotEmpty && _fromLongitude.value.isNotEmpty) {
-      centerForDetours = GeoPoint(
-        double.parse(_fromLatitude.value),
-        double.parse(_fromLongitude.value),
-      );
-    }
-
-    // 🎯 RECHERCHE VIA LE CONTRÔLEUR
-    await _searchController.searchIntelligentTrips(
-      centerForDetours: centerForDetours,
-    );
-
-    // 🔥 NAVIGATION IMMÉDIATE VERS SEARCHRESULTSPAGE
-    final results = _searchController.results;
-    
-    if (results.isEmpty) {
-      // Si pas de résultats, naviguer quand même vers la page avec liste vide
-      Get.to(() => SearchResultsPage(
-        trips: [],
-        from: _fromController.text,
-        to: _toController.text,
-        date: _dateController.text,
-        time: _timeController.text,
-      ));
-      return;
-    }
-
-    // 🎯 TRANSFORMATION DES TRIPMODEL VERS MAP POUR SEARCHRESULTSPAGE
-    final trips = results.asMap().entries.map((entry) {
-      final index = entry.key;
-      final trip = entry.value;
-      
-      // Simuler les mêmes types et données pour cohérence visuelle
-      final List<String> tripTypes = ['direct', 'intermediate', 'detour'];
-      final tripType = tripTypes[index % tripTypes.length];
-      final matchScore = 95 - (index * 5).clamp(0, 95);
-      final price = 25.0 + (index * 5);
-      
-      return {
-        'tripId': trip.tripId,
-        'driverId': trip.driverId,
-        'route': '${trip.originAddress} → ${trip.destinationAddress}',
-        'origin': trip.originAddress,
-        'destination': trip.destinationAddress,
-        'departureTime': DateFormat('HH:mm').format(trip.departureTime),
-        'arrivalTime': DateFormat('HH:mm').format(trip.departureTime.add(const Duration(hours: 2))),
-        'vehicleType': trip.vehicleType,
-        'vehicleCapacity': trip.vehicleCapacity,
-        'acceptedParcelTypes': trip.acceptedParcelTypes,
-        'status': trip.status,
-        'allowDetours': trip.allowDetours,
-        'waypoints': trip.waypoints ?? [],
-        
-        // 🔥 DONNÉES POUR AFFICHAGE PROFESSIONNEL
-        'tripType': tripType,
-        'matchScore': matchScore,
-        'actualPrice': price,
-        'driverName': 'Conducteur ViaAmigo',
-        'rating': '4.${8 - (index % 5)}',
-        'completedTrips': (index + 1) * 15,
-        'seats': trip.vehicleCapacity['maxParcels'] ?? 4,
-        
-        // Info détour si applicable
-        if (tripType == 'detour')
-          'detourInfo': {
-            'distance': (index + 1) * 3,
-            'time': (index + 1) * 5,
-            'extraCost': index * 2.0,
-          },
-        
-        // Info portion si intermédiaire
-        if (tripType == 'intermediate')
-          'usedPortion': '${100 - (index * 10)}%',
-      };
-    }).toList();
-
-    // 🚀 NAVIGATION VERS SEARCHRESULTSPAGE AVEC TOUS LES RÉSULTATS
-    Get.to(() => SearchResultsPage(
-      trips: trips,
-      from: _fromController.text,
-      to: _toController.text,
-      date: _dateController.text,
-      time: _timeController.text,
-    ));
-  }*/
-
+*/
   // Méthodes utilitaires (identiques)
   void _swapAddresses() {
     setState(() {
@@ -443,84 +577,75 @@ Future<void> _performSearchAndNavigate() async {
   }
 
   // Méthodes pour les champs d'adresse (identiques à votre version)
-  Widget _buildAddressSection() {
-    final theme = Theme.of(context);
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () => showAddressSearchModal(
-            context: context,
-            isFromField: true,
-            initialValue: _fromController.text,
-            onSelected: (GeocodingResult result) {
-              _fromController.text = result.formattedAddress;
-              _fromAddress.value = result.formattedAddress;
-              _fromLatitude.value = result.latitude.toString();
-              _fromLongitude.value = result.longitude.toString();
-              //var city = result.formattedAddress.split(',').first;
-            },
-          ),
-          child: IgnorePointer(
-            child: Obx(() => CustomTextField(
-              controller: _fromController,
-              labelText: 'From',
-              hintText: 'Departure address',
-              keyboardType: TextInputType.streetAddress,
-              borderRadius: 30,
-              isTransparent: true,
-              prefixIcon: const Icon(LucideIcons.mapPin),
-              suffixIcon: _fromAddress.value.isNotEmpty 
-                  ? IconButton(
-                      icon: const Icon(LucideIcons.x, size: 20),
-                      onPressed: _clearFromAddress,
-                      tooltip: 'Delete address',
-                    )
-                  : null,
-              borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
-            )),
-          ),
+Widget _buildAddressSection() {
+  final theme = Theme.of(context);
+  return Column(
+    children: [
+      CustomTextField(
+        controller: _fromController,
+        labelText: 'From',
+        hintText: 'Departure address',
+        keyboardType: TextInputType.streetAddress,
+        borderRadius: 30,
+        isTransparent: true,
+        readOnly: true,                         // 👈
+        onTap: () => showAddressSearchModal(    // 👈
+          context: context,
+          isFromField: true,
+          initialValue: _fromController.text,
+          onSelected: (GeocodingResult result) {
+            _fromController.text = result.formattedAddress;
+            _fromAddress.value = result.formattedAddress;
+            _fromLatitude.value = result.latitude.toString();
+            _fromLongitude.value = result.longitude.toString();
+          },
         ),
-      ],
-    );
-  }
-
-  Widget _buildToAddressSection(ThemeData theme) {
-    return InkWell(
-      onTap: () => showAddressSearchModal(
-        context: context,
-        isFromField: false,
-        initialValue: _toController.text,
-        onSelected: (GeocodingResult result) {
-          _toController.text = result.formattedAddress;
-          _toAddress.value = result.formattedAddress;
-          _toLatitude.value = result.latitude.toString();
-          _toLongitude.value = result.longitude.toString();
-        },
+        prefixIcon: const Icon(LucideIcons.mapPin),
+        suffixIcon: _fromAddress.value.isNotEmpty
+            ? IconButton(
+                icon: const Icon(LucideIcons.x, size: 20),
+                onPressed: _clearFromAddress,
+                tooltip: 'Delete address',
+              )
+            : null,
+        borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
       ),
-      child: IgnorePointer(
-        child: Obx(() => CustomTextField(
-          controller: _toController,
-          hintText: 'Adresse de destination',
-          prefixIcon: const Icon(LucideIcons.map),
-          labelText: 'Vers',
-          keyboardType: TextInputType.streetAddress,
-          borderRadius: 30,
-          isTransparent: true,
-          suffixIcon: _toAddress.value.isNotEmpty 
-              ? IconButton(
-                  icon: const Icon(LucideIcons.x, size: 20),
-                  onPressed: _clearToAddress,
-                  tooltip: 'Supprimer l\'adresse',
-                )
-              : null,
-          hasBorder: true,
-          borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-        )),
-      ),
-    );
-  }
+    ],
+  );
+}
 
+Widget _buildToAddressSection(ThemeData theme) {
+  return CustomTextField(
+    controller: _toController,
+    hintText: 'Adresse de destination',
+    labelText: 'Vers',
+    keyboardType: TextInputType.streetAddress,
+    borderRadius: 30,
+    isTransparent: true,
+    readOnly: true,                       // 👈
+    onTap: () => showAddressSearchModal(  // 👈
+      context: context,
+      isFromField: false,
+      initialValue: _toController.text,
+      onSelected: (GeocodingResult result) {
+        _toController.text = result.formattedAddress;
+        _toAddress.value = result.formattedAddress;
+        _toLatitude.value = result.latitude.toString();
+        _toLongitude.value = result.longitude.toString();
+      },
+    ),
+    prefixIcon: const Icon(LucideIcons.map),
+    suffixIcon: _toAddress.value.isNotEmpty
+        ? IconButton(
+            icon: const Icon(LucideIcons.x, size: 20),
+            onPressed: _clearToAddress,
+            tooltip: 'Supprimer l\'adresse',
+          )
+        : null,
+    hasBorder: true,
+    borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+  );
+}
   Future<void> showAddressSearchModal({
     required BuildContext context,
     required String initialValue,
@@ -685,36 +810,41 @@ Future<void> _performSearchAndNavigate() async {
     );
   }
 
-  Widget _buildDateTimeSelector({
-    required BuildContext context,
-    required String label,
-    required IconData icon,
-    required TextEditingController dateController,
-    required TextEditingController timeController,
-    required VoidCallback onDateTap,
-  }) {
-    final theme = Theme.of(context);
+Widget _buildDateTimeSelector({
+  required BuildContext context,
+  required String label,
+  required IconData icon,
+  required IconData suffixIcon,
+  required TextEditingController dateController,
+  required TextEditingController timeController,
+  required VoidCallback onDateTap,
+}) {
+  final theme = Theme.of(context);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        InkWell(
-          onTap: onDateTap,
-          child: IgnorePointer(
-            child: CustomTextField(
-              controller: dateController,
-              hintText: 'Select date',
-              borderRadius: 30,
-              isTransparent: true,
-              prefixIcon: Icon(icon, size: 16),
-              hasBorder: true,
-              borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
-            ),
-          ),
-        )
-      ],
-    );
-  }
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      CustomTextField(
+        controller: dateController,
+        hintText: 'Select date',
+        borderRadius: 30,
+        isTransparent: true,
+        prefixIcon: Icon(icon, size: 16),
+        readOnly: true,              // 👈 empêche l’édition mais autorise les taps
+        onTap: onDateTap,            // 👈 ouvre le date picker
+        hasBorder: true,
+        borderColor: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 1),
+        suffixIcon: dateController.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(LucideIcons.x, size: 20),
+                onPressed: _clearDate,      // 👈 marche maintenant
+                tooltip: 'Delete date',
+              )
+            : null,
+      ),
+    ],
+  );
+}
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -749,6 +879,11 @@ Future<void> _performSearchAndNavigate() async {
       _fromAddress.value = '';
       _fromLatitude.value = '';
       _fromLongitude.value = '';
+    });
+  }
+  void _clearDate() {
+    setState(() {
+      _dateController.clear();
     });
   }
 

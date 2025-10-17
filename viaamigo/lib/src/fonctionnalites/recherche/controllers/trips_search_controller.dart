@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:viaamigo/shared/collections/trip/model/trip_model.dart';
 import 'package:viaamigo/shared/collections/trip/service/trip_service.dart';
 
@@ -24,6 +25,7 @@ class TripsSearchController extends GetxController {
   final RxBool allowDetours = false.obs;
   final RxDouble maxDetourDistance = 50.0.obs;
   final RxInt maxDetourTime = 30.obs;
+  
 
 /*
 /// Version simplifiée - reconstruction manuelle du TripModel
@@ -73,8 +75,45 @@ Future<void> searchIntelligentTrips({GeoPoint? centerForDetours}) async {
     _pageController.isLoading.value = false;
   }
 }*/
+Future<void> searchIntelligentTrips({
+  GeoPoint? centerForDetours,
+  DateTime? selectedDate,  // 🔥 NOUVEAU PARAMÈTRE
+}) async {
+  if (fromLocation.value.isEmpty || toLocation.value.isEmpty) {
+    UIMessageManager.validationError("Please fill all mandatory fields.");
+    return;
+  }
+  
+  _pageController.isLoading.value = true;
+  
+  try {
+    results.value = await _service.searchTrips(
+      fromLocation: fromLocation.value,
+      toLocation: toLocation.value,
+      selectedDate: selectedDate,  // 🔥 PASSER LA DATE
+      includeIntermediateStops: includeIntermediateStops.value,
+      allowDetours: allowDetours.value,
+      maxDetourDistance: maxDetourDistance.value,
+      maxDetourTime: maxDetourTime.value,
+      centerForDetours: centerForDetours,
+    );
+    
+    if (results.isEmpty) {
+      String message = selectedDate != null 
+        ? 'Aucun trajet trouvé pour le ${DateFormat('dd/MM/yyyy').format(selectedDate)}'
+        : 'Aucun trajet trouvé pour ces critères';
+      Get.snackbar('Aucun résultat', message);
+    } else {
+      Get.snackbar('Succès', '${results.length} trajets trouvés');
+    }
+  } catch (e) {
+    Get.snackbar('Erreur', 'Échec de la recherche des trajets: $e');
+  } finally {
+    _pageController.isLoading.value = false;
+  }
+}
   /// Recherche intelligente de trajets (appel au service)
-  Future<void> searchIntelligentTrips({GeoPoint? centerForDetours}) async {
+  /*Future<void> searchIntelligentTrips({GeoPoint? centerForDetours}) async {
     if (fromLocation.value.isEmpty || toLocation.value.isEmpty) {
       UIMessageManager.validationError("Please fill all mandatory fields.");
       return;
@@ -100,7 +139,7 @@ Future<void> searchIntelligentTrips({GeoPoint? centerForDetours}) async {
     } finally {
       _pageController.isLoading.value = false;
     }
-  }
+  }*/
     /// 🔥 NOUVELLE MÉTHODE : Initialisation depuis l'UI
   void initializeFromUI({
     required String fromLocation,
